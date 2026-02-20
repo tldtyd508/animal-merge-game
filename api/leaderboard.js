@@ -1,33 +1,56 @@
-// Vercel Serverless Function - 랭킹 API
-import { sql } from '@vercel/postgres'
+// Vercel Serverless Function - 랭킹 API (Supabase)
+import { createClient } from '@supabase/supabase-js'
+
+// Supabase 클라이언트 (서버용 - Service Role Key 사용)
+const supabaseUrl = process.env.SUPABASE_URL
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+const supabase = supabaseUrl && supabaseServiceKey
+  ? createClient(supabaseUrl, supabaseServiceKey)
+  : null
 
 // CORS 헤더 설정
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 }
 
 // 메인 핸들러
 export default async function handler(req, res) {
+  // CORS 헤더 적용
+  Object.entries(corsHeaders).forEach(([key, value]) => {
+    res.setHeader(key, value)
+  })
+
   // CORS preflight 처리
   if (req.method === 'OPTIONS') {
-    return res.status(200).json({})
+    return res.status(200).end()
+  }
+
+  // Supabase 설정 확인
+  if (!supabase) {
+    return res.status(500).json({
+      success: false,
+      message: 'Database not configured',
+    })
   }
 
   try {
     // GET: 랭킹 목록 조회
     if (req.method === 'GET') {
-      const result = await sql`
-        SELECT user_id, player_name, score, highest_animal, created_at
-        FROM leaderboard
-        ORDER BY score DESC, created_at ASC
-        LIMIT 100
-      `
+      const { data, error } = await supabase
+        .from('leaderboard')
+        .select('user_id, auth_user_id, player_name, score, highest_animal, created_at')
+        .order('score', { ascending: false })
+        .order('created_at', { ascending: true })
+        .limit(100)
+
+      if (error) throw error
 
       return res.status(200).json(
-        result.rows.map((row, index) => ({
-          userId: row.user_id,
+        data.map((row, index) => ({
+          userId: row.user_id || row.auth_user_id,
           playerName: row.player_name,
           score: row.score,
           highestAnimal: row.highest_animal,
@@ -39,10 +62,10 @@ export default async function handler(req, res) {
 
     // POST: 점수 제출
     if (req.method === 'POST') {
-      const { userId, playerName, score, highestAnimal } = req.body
+      const { userId, authUserId, playerName, score, highestAnimal } = req.body
 
       // 입력 검증
-      if (!userId || !playerName || typeof score !== 'number') {
+      if ((!userId && !authUserId) || !playerName || typeof score !== 'number') {
         return res.status(400).json({
           success: false,
           message: 'Invalid input data',
@@ -66,18 +89,34 @@ export default async function handler(req, res) {
       }
 
       // 점수 저장
-      await sql`
-        INSERT INTO leaderboard (user_id, player_name, score, highest_animal, created_at)
-        VALUES (${userId}, ${playerName}, ${score}, ${highestAnimal || 0}, NOW())
-      `
+      const insertData = {
+        player_name: playerName,
+        score,
+        highest_animal: highestAnimal || 0,
+      }
+
+      // Auth 사용자인 경우 auth_user_id, 아니면 user_id 사용
+      if (authUserId) {
+        insertData.auth_user_id = authUserId
+      } else {
+        insertData.user_id = userId
+      }
+
+      const { error: insertError } = await supabase
+        .from('leaderboard')
+        .insert([insertData])
+
+      if (insertError) throw insertError
 
       // 순위 계산
-      const rankResult = await sql`
-        SELECT COUNT(*) as rank
-        FROM leaderboard
-        WHERE score > ${score}
-      `
-      const rank = parseInt(rankResult.rows[0].rank) + 1
+      const { count, error: countError } = await supabase
+        .from('leaderboard')
+        .select('*', { count: 'exact', head: true })
+        .gt('score', score)
+
+      if (countError) throw countError
+
+      const rank = (count || 0) + 1
 
       return res.status(200).json({
         success: true,
@@ -99,9 +138,4 @@ export default async function handler(req, res) {
       error: process.env.NODE_ENV === 'development' ? error.message : undefined,
     })
   }
-}
-
-// Vercel config
-export const config = {
-  runtime: 'edge',
 }

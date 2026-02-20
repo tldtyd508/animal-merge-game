@@ -16,7 +16,7 @@ export async function getLeaderboard() {
 }
 
 // 점수 제출
-export async function submitScore(userId, playerName, score, highestAnimal) {
+export async function submitScore(userId, authUserId, playerName, score, highestAnimal) {
   try {
     const response = await fetch(`${API_BASE_URL}/leaderboard`, {
       method: 'POST',
@@ -25,6 +25,7 @@ export async function submitScore(userId, playerName, score, highestAnimal) {
       },
       body: JSON.stringify({
         userId,
+        authUserId,
         playerName,
         score,
         highestAnimal,
@@ -36,7 +37,7 @@ export async function submitScore(userId, playerName, score, highestAnimal) {
   } catch (error) {
     console.error('Score submission error:', error)
     // 로컬에 저장
-    saveScoreLocally(userId, playerName, score, highestAnimal)
+    saveScoreLocally(userId || authUserId, playerName, score, highestAnimal)
     return { success: false, message: 'Saved locally' }
   }
 }
