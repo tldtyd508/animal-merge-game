@@ -71,10 +71,10 @@ export default function MergeGame({ playerName }) {
           }
         }
 
-        // 글로벌 속도 댐핑 (떨림 방지)
+        // 글로벌 속도 댐핑 (미세 떨림만 제거)
         for (const b of s.balls) {
-          if (Math.abs(b.vx) < 0.3) b.vx = 0
-          if (Math.abs(b.vy) < 1.0) b.vy = 0
+          if (Math.abs(b.vx) < 0.1) b.vx = 0
+          if (Math.abs(b.vy) < 0.2) b.vy = 0
         }
 
         // 합체 처리 (서브스텝 밖에서 한 번만)
@@ -86,7 +86,7 @@ export default function MergeGame({ playerName }) {
             const dx = b2.x - a.x
             const dy = b2.y - a.y
             const d = Math.sqrt(dx * dx + dy * dy)
-            if (d < (a.r + b2.r) * 0.70 && a.type === b2.type && a.type < ANIMALS.length - 1 && !a.del && !b2.del) {
+            if (d < (a.r + b2.r) * 0.84 && a.type === b2.type && a.type < ANIMALS.length - 1 && !a.del && !b2.del) {
               merges.push([i, j])
               a.del = true
               b2.del = true
@@ -113,7 +113,7 @@ export default function MergeGame({ playerName }) {
               id: nextId(), type: nt,
               x: mergeX, y: mergeY,
               vx: 0, vy: -2, r: ANIMALS[nt].r,
-              born: Math.min(a.born, b2.born), // 더 오래된 시간 계승 (버그 수정)
+              born: Date.now(), // 합체 시 타임스탬프 리셋 (조기 게임오버 방지)
             })
             // 통계: 최고 동물 기록
             if (nt > maxAnimalReached.current) {

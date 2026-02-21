@@ -43,8 +43,8 @@ export function updateBall(b) {
     b.y = FLOOR_Y - b.r
     b.vy = -Math.abs(b.vy) * BOUNCE
     b.vx *= FRICTION // 바닥 추가 마찰
-    if (Math.abs(b.vy) < 1.0) b.vy = 0
-    if (Math.abs(b.vx) < 0.3) b.vx = 0
+    if (Math.abs(b.vy) < 0.5) b.vy = 0
+    if (Math.abs(b.vx) < 0.1) b.vx = 0
   }
 }
 
@@ -81,9 +81,8 @@ export function resolvePair(a, b) {
     a.vy -= imp * ny * (b.r / totalR)
     b.vx += imp * nx * (a.r / totalR)
     b.vy += imp * ny * (a.r / totalR)
+    // 실제 충돌 시에만 마찰 적용
+    a.vx *= 0.94
+    b.vx *= 0.94
   }
-
-  // 동물 간 충돌 마찰
-  a.vx *= 0.94
-  b.vx *= 0.94
 }
