@@ -21,6 +21,9 @@ export default function MergeGame() {
     combo: 0, // 콤보 카운트
     comboTimer: 0, // 콤보 타이머 (180프레임 = 3초)
     dangerT: 0,
+    shakeT: 0, // 화면 흔들림 타이머
+    dropTimer: 0, // 자동 드롭 카운트다운
+    dropTimerMax: 180, // 최대 타이머 (3초, 점수에 따라 감소)
   })
   const [score, setScore] = useState(0)
   const [highScore, setHighScore] = useState(() => {
@@ -139,6 +142,8 @@ export default function MergeGame() {
             }
           }
           s.balls = s.balls.filter(b => !b.del)
+          // 화면 흔들림 (콤보가 높을수록 강하게)
+          s.shakeT = Math.min(5 + s.combo * 2, 20)
         }
 
         // 이펙트 업데이트
@@ -160,6 +165,33 @@ export default function MergeGame() {
           s.comboTimer--
           if (s.comboTimer === 0) {
             s.combo = 0 // 콤보 리셋
+          }
+        }
+
+        // 자동 드롭 타이머 (canDrop일 때만 카운트)
+        if (s.canDrop && !s.over) {
+          s.dropTimer--
+          if (s.dropTimer <= 0) {
+            // 시간 초과 → 자동 드롭!
+            const r = ANIMALS[s.cur].r
+            const dx = Math.max(LEFT + r, Math.min(RIGHT - r, s.dropX))
+            s.balls.push({
+              id: nextId(), type: s.cur,
+              x: dx, y: DROP_Y, vx: 0, vy: 0,
+              r, born: Date.now(),
+            })
+            s.cur = s.nxt
+            s.nxt = Math.floor(Math.random() * DROP_TYPES)
+            s.canDrop = false
+
+            // 난이도에 따른 쿨다운
+            const cooldown = Math.max(150, 400 - s.score * 0.1)
+            cooldownTimerRef.current = setTimeout(() => {
+              s.canDrop = true
+              // 타이머 리셋 (점수 높을수록 짧아짐)
+              s.dropTimerMax = Math.max(90, 180 - Math.floor(s.score / 100) * 10) // 3초 → 최소 1.5초
+              s.dropTimer = s.dropTimerMax
+            }, cooldown)
           }
         }
 
@@ -259,12 +291,12 @@ export default function MergeGame() {
         clearTimeout(cooldownTimerRef.current)
         cooldownTimerRef.current = null
       }
-      s.balls = []; s.score = 0; s.fx = []; s.scorePopups = []; s.particles = []; s.combo = 0; s.comboTimer = 0; s.dangerT = 0
+      s.balls = []; s.score = 0; s.fx = []; s.scorePopups = []; s.particles = []; s.combo = 0; s.comboTimer = 0; s.dangerT = 0; s.shakeT = 0
+      s.dropTimer = 180; s.dropTimerMax = 180
       s.cur = Math.floor(Math.random() * DROP_TYPES)
       s.nxt = Math.floor(Math.random() * DROP_TYPES)
       s.canDrop = true; s.over = false
       setScore(0); setOver(false); setPaused(false)
-      // 통계 초기화
       gameStartTime.current = Date.now()
       maxAnimalReached.current = 0
       maxComboReached.current = 0
@@ -287,11 +319,16 @@ export default function MergeGame() {
 
     // 난이도에 따른 쿨다운 (점수가 높을수록 빠름)
     const baseCooldown = 400
-    const reductionPerScore = 0.1 // 점수 10점당 1ms 감소
+    const reductionPerScore = 0.1
     const minCooldown = 150
     const cooldown = Math.max(minCooldown, baseCooldown - s.score * reductionPerScore)
 
-    cooldownTimerRef.current = setTimeout(() => { s.canDrop = true }, cooldown)
+    cooldownTimerRef.current = setTimeout(() => {
+      s.canDrop = true
+      // 자동 드롭 타이머 리셋 (점수 높을수록 짧아짐)
+      s.dropTimerMax = Math.max(90, 180 - Math.floor(s.score / 100) * 10)
+      s.dropTimer = s.dropTimerMax
+    }, cooldown)
   }
 
   const restart = () => {
@@ -301,12 +338,12 @@ export default function MergeGame() {
       clearTimeout(cooldownTimerRef.current)
       cooldownTimerRef.current = null
     }
-    s.balls = []; s.score = 0; s.fx = []; s.scorePopups = []; s.particles = []; s.combo = 0; s.comboTimer = 0; s.dangerT = 0
+    s.balls = []; s.score = 0; s.fx = []; s.scorePopups = []; s.particles = []; s.combo = 0; s.comboTimer = 0; s.dangerT = 0; s.shakeT = 0
+    s.dropTimer = 180; s.dropTimerMax = 180
     s.cur = Math.floor(Math.random() * DROP_TYPES)
     s.nxt = Math.floor(Math.random() * DROP_TYPES)
     s.canDrop = true; s.over = false
     setScore(0); setOver(false); setPaused(false)
-    // 통계 초기화
     gameStartTime.current = Date.now()
     maxAnimalReached.current = 0
     maxComboReached.current = 0

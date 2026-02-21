@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { ANIMALS } from '../game/animals'
 import { getLeaderboard, submitScore } from '../api/leaderboard'
 import { getUserId, getUserNickname, setUserNickname, getShortUserId } from '../utils/userId'
-import { supabase, signInWithGoogle, signInWithKakao, signOut, getCurrentUser, onAuthStateChange } from '../lib/supabase'
+import { supabase, signInWithGoogle, signOut, getCurrentUser, onAuthStateChange } from '../lib/supabase'
 
 export default function Leaderboard({ isOpen, onClose, currentScore, highestAnimal }) {
   const [leaderboard, setLeaderboard] = useState([])
@@ -60,15 +60,6 @@ export default function Leaderboard({ isOpen, onClose, currentScore, highestAnim
   const handleGoogleLogin = async () => {
     setLoading(true)
     const { error } = await signInWithGoogle()
-    if (error) {
-      alert(`로그인 실패: ${error.message}`)
-    }
-    setLoading(false)
-  }
-
-  const handleKakaoLogin = async () => {
-    setLoading(true)
-    const { error } = await signInWithKakao()
     if (error) {
       alert(`로그인 실패: ${error.message}`)
     }
@@ -200,7 +191,7 @@ export default function Leaderboard({ isOpen, onClose, currentScore, highestAnim
                     onClick={handleGoogleLogin}
                     disabled={loading}
                     style={{
-                      flex: 1,
+                      width: '100%',
                       background: '#fff',
                       border: 'none',
                       color: '#333',
@@ -215,28 +206,7 @@ export default function Leaderboard({ isOpen, onClose, currentScore, highestAnim
                       gap: 6
                     }}
                   >
-                    <span>🔵</span> Google
-                  </button>
-                  <button
-                    onClick={handleKakaoLogin}
-                    disabled={loading}
-                    style={{
-                      flex: 1,
-                      background: '#FEE500',
-                      border: 'none',
-                      color: '#000',
-                      padding: '10px 16px',
-                      borderRadius: 6,
-                      cursor: 'pointer',
-                      fontSize: 13,
-                      fontWeight: '600',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 6
-                    }}
-                  >
-                    <span>💬</span> Kakao
+                    <span>🔵</span> Google 로그인
                   </button>
                 </div>
                 <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, textAlign: 'center' }}>

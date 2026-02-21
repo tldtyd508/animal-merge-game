@@ -1,10 +1,8 @@
-import { ANIMALS } from './animals'
-
-// 물리 상수 (천천히 보이도록 조정)
-export const GRAVITY = 0.40  // 0.55 → 0.40 (더 느린 낙하)
-export const BOUNCE = 0.25   // 0.28 → 0.25 (더 부드러운 착지)
-export const FRICTION = 0.88 // 0.93 → 0.88 (땅에서 빠르게 멈춤)
-export const AIR_RESISTANCE = 0.98 // 0.99 → 0.98 (공중 감속 강화)
+// 물리 상수 (빠르고 역동적으로)
+export const GRAVITY = 0.55  // 더 빠른 낙하
+export const BOUNCE = 0.35   // 더 탱탱한 반발
+export const FRICTION = 0.92 // 바닥에서 약간 미끄러짐
+export const AIR_RESISTANCE = 0.995 // 공중에서 자연스러운 이동
 export const SPACING_FACTOR = 0.96 // 동물 간 간격
 export const SUB_STEPS = 5
 
@@ -83,7 +81,7 @@ export function resolvePair(a, b) {
     b.vy += imp * ny * (a.r / totalR)
   }
 
-  // 동물 간 충돌에도 마찰 적용 (수평 속도 감쇠)
-  a.vx *= 0.92  // 0.96 → 0.92 (더 빠르게 멈춤)
-  b.vx *= 0.92
+  // 동물 간 충돌 마찰
+  a.vx *= 0.96
+  b.vx *= 0.96
 }

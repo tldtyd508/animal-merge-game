@@ -4,9 +4,20 @@ import { CANVAS_W as W, CANVAS_H as H, WALL, FLOOR_Y, LEFT, RIGHT, DROP_Y, DANGE
 
 // 게임 화면 전체 렌더링
 export function render(ctx, state, highScore = 0, paused = false) {
+  ctx.save()
+
+  // 화면 흔들림 효과
+  if (state.shakeT > 0) {
+    const intensity = state.shakeT * 0.5
+    const sx = (Math.random() - 0.5) * intensity
+    const sy = (Math.random() - 0.5) * intensity
+    ctx.translate(sx, sy)
+    state.shakeT--
+  }
+
   // 배경
   ctx.fillStyle = '#1a1a2e'
-  ctx.fillRect(0, 0, W, H)
+  ctx.fillRect(-5, -5, W + 10, H + 10)
 
   // 게임 영역
   const grd = ctx.createLinearGradient(0, DROP_Y, 0, H)
@@ -52,8 +63,33 @@ export function render(ctx, state, highScore = 0, paused = false) {
     ctx.beginPath(); ctx.moveTo(state.dropX, DROP_Y); ctx.lineTo(state.dropX, FLOOR_Y); ctx.stroke()
     ctx.setLineDash([])
     ctx.globalAlpha = 0.7
-    drawAnimal(ctx, state.dropX, DROP_Y / 2 + 12, ANIMALS[state.cur].r * 0.7, state.cur)
+    drawAnimal(ctx, state.dropX, DROP_Y / 2 + 12, ANIMALS[state.cur].r, state.cur)
     ctx.globalAlpha = 1
+
+    // 자동 드롭 타이머 표시
+    if (state.dropTimer !== undefined && state.dropTimerMax > 0) {
+      const progress = state.dropTimer / state.dropTimerMax
+      const timerColor = progress > 0.5 ? '#4CAF50' : progress > 0.25 ? '#FF9800' : '#F44336'
+      const barWidth = 60
+      const barX = state.dropX - barWidth / 2
+      const barY = 8
+
+      // 타이머 배경
+      ctx.fillStyle = 'rgba(255,255,255,0.15)'
+      ctx.fillRect(barX, barY, barWidth, 5)
+      // 타이머 진행
+      ctx.fillStyle = timerColor
+      ctx.fillRect(barX, barY, barWidth * progress, 5)
+
+      // 남은 시간이 적으면 깜빡이기
+      if (progress < 0.25) {
+        const blink = Math.sin(Date.now() * 0.015) > 0
+        if (blink) {
+          ctx.fillStyle = 'rgba(255,60,60,0.3)'
+          ctx.fillRect(0, 0, W, H)
+        }
+      }
+    }
   }
 
   // 동물들
@@ -173,7 +209,7 @@ export function render(ctx, state, highScore = 0, paused = false) {
   ctx.font = '12px sans-serif'; ctx.textAlign = 'center'
   ctx.fillStyle = 'rgba(255,255,255,0.7)'
   ctx.fillText('NEXT', nextX, 15)
-  drawAnimal(ctx, nextX, nextY, ANIMALS[state.nxt].r * 0.6, state.nxt)
+  drawAnimal(ctx, nextX, nextY, ANIMALS[state.nxt].r * 0.55, state.nxt)
 
   // 일시정지
   if (paused && !state.over) {
@@ -196,4 +232,6 @@ export function render(ctx, state, highScore = 0, paused = false) {
     ctx.font = '15px sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.6)'
     ctx.fillText('클릭하여 다시 시작', W / 2, H / 2 + 45)
   }
+
+  ctx.restore()
 }
