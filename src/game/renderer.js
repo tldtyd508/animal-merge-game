@@ -81,12 +81,13 @@ export function render(ctx, state, highScore = 0, paused = false) {
       ctx.fillStyle = timerColor
       ctx.fillRect(barX, barY, barWidth * progress, 5)
 
-      // 남은 시간이 적으면 깜빡이기
+      // 남은 시간이 적으면 테두리 깜빡이기
       if (progress < 0.25) {
         const blink = Math.sin(Date.now() * 0.015) > 0
         if (blink) {
-          ctx.fillStyle = 'rgba(255,60,60,0.3)'
-          ctx.fillRect(0, 0, W, H)
+          ctx.strokeStyle = 'rgba(255,60,60,0.6)'
+          ctx.lineWidth = 4
+          ctx.strokeRect(2, 2, W - 4, H - 4)
         }
       }
     }
@@ -169,7 +170,7 @@ export function render(ctx, state, highScore = 0, paused = false) {
 
   // 레벨 시스템
   const level = Math.min(Math.floor(state.score / 500) + 1, 6)
-  const levelColors = ['#4CAF50', '#FFEB3B', '#FF9800', '#F44336', '#9C27B0', '#000']
+  const levelColors = ['#4CAF50', '#FFEB3B', '#FF9800', '#F44336', '#9C27B0', '#00E5FF']
   const levelProgress = (state.score % 500) / 500
 
   ctx.fillStyle = levelColors[level - 1]

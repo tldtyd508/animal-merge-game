@@ -22,7 +22,7 @@ export default function MergeGame() {
     comboTimer: 0, // 콤보 타이머 (180프레임 = 3초)
     dangerT: 0,
     shakeT: 0, // 화면 흔들림 타이머
-    dropTimer: 0, // 자동 드롭 카운트다운
+    dropTimer: 180, // 자동 드롭 카운트다운 (초기값 = dropTimerMax)
     dropTimerMax: 180, // 최대 타이머 (3초, 점수에 따라 감소)
   })
   const [score, setScore] = useState(0)
@@ -202,6 +202,7 @@ export default function MergeGame() {
           s.dangerT++
           if (s.dangerT > 120) {  // 60 → 120 (2초로 증가)
             s.over = true
+            s.overTime = Date.now()
             setOver(true)
             // 최고 점수 갱신
             setHighScore(prev => {
@@ -232,7 +233,13 @@ export default function MergeGame() {
     }
 
     raf = requestAnimationFrame(step)
-    return () => cancelAnimationFrame(raf)
+    return () => {
+      cancelAnimationFrame(raf)
+      if (cooldownTimerRef.current) {
+        clearTimeout(cooldownTimerRef.current)
+        cooldownTimerRef.current = null
+      }
+    }
   }, [paused, highScore])
 
   // 게임 통계 저장
@@ -285,21 +292,9 @@ export default function MergeGame() {
     const s = g.current
 
     if (s.over) {
-      // 재시작
-      // 쿨다운 타이머 정리 (누수 방지)
-      if (cooldownTimerRef.current) {
-        clearTimeout(cooldownTimerRef.current)
-        cooldownTimerRef.current = null
-      }
-      s.balls = []; s.score = 0; s.fx = []; s.scorePopups = []; s.particles = []; s.combo = 0; s.comboTimer = 0; s.dangerT = 0; s.shakeT = 0
-      s.dropTimer = 180; s.dropTimerMax = 180
-      s.cur = Math.floor(Math.random() * DROP_TYPES)
-      s.nxt = Math.floor(Math.random() * DROP_TYPES)
-      s.canDrop = true; s.over = false
-      setScore(0); setOver(false); setPaused(false)
-      gameStartTime.current = Date.now()
-      maxAnimalReached.current = 0
-      maxComboReached.current = 0
+      // 게임오버 후 1초 딜레이 (실수 방지)
+      if (s.overTime && Date.now() - s.overTime < 1000) return
+      restart()
       return
     }
 
@@ -354,10 +349,10 @@ export default function MergeGame() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', maxWidth: 360, marginBottom: 6 }}>
         <span style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>🐾 동물 합치기</span>
         <div style={{ display: 'flex', gap: 6 }}>
-          <button onClick={() => setShowLeaderboard(true)} style={{ background: '#9C27B0', color: '#fff', border: 'none', borderRadius: 8, padding: '5px 12px', cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>
+          <button onClick={() => { setShowLeaderboard(true); setPaused(true) }} style={{ background: '#9C27B0', color: '#fff', border: 'none', borderRadius: 8, padding: '5px 12px', cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>
             🏆
           </button>
-          <button onClick={() => setShowStats(true)} style={{ background: '#2196F3', color: '#fff', border: 'none', borderRadius: 8, padding: '5px 12px', cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>
+          <button onClick={() => { setShowStats(true); setPaused(true) }} style={{ background: '#2196F3', color: '#fff', border: 'none', borderRadius: 8, padding: '5px 12px', cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>
             📊
           </button>
           <button onClick={togglePause} disabled={over} style={{ background: paused ? '#4CAF50' : '#FFA726', color: '#fff', border: 'none', borderRadius: 8, padding: '5px 12px', cursor: over ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 'bold', opacity: over ? 0.5 : 1 }}>
@@ -384,12 +379,12 @@ export default function MergeGame() {
       </div>
 
       {/* 게임 통계 모달 */}
-      <GameStats isOpen={showStats} onClose={() => setShowStats(false)} />
+      <GameStats isOpen={showStats} onClose={() => { setShowStats(false); setPaused(false) }} />
 
       {/* 랭킹 모달 */}
       <Leaderboard
         isOpen={showLeaderboard}
-        onClose={() => setShowLeaderboard(false)}
+        onClose={() => { setShowLeaderboard(false); setPaused(false) }}
         currentScore={score}
         highestAnimal={maxAnimalReached.current}
       />

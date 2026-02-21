@@ -15,4 +15,4 @@ export const ANIMALS = [
 ]
 
 // 드롭 가능한 동물: 처음 5종으로 증가 (난이도↑)
-export const DROP_TYPES = 5
+export const DROP_TYPES = 4
