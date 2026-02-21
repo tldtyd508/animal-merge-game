@@ -86,7 +86,7 @@ export default function MergeGame({ playerName }) {
             const dx = b2.x - a.x
             const dy = b2.y - a.y
             const d = Math.sqrt(dx * dx + dy * dy)
-            if (d < (a.r + b2.r) * 0.85 && a.type === b2.type && a.type < ANIMALS.length - 1 && !a.del && !b2.del) {
+            if (d < (a.r + b2.r) * 0.70 && a.type === b2.type && a.type < ANIMALS.length - 1 && !a.del && !b2.del) {
               merges.push([i, j])
               a.del = true
               b2.del = true
