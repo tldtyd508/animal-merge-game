@@ -5,7 +5,7 @@ import { render } from './renderer'
 import GameStats from '../ui/GameStats'
 import Leaderboard from '../ui/Leaderboard'
 
-export default function MergeGame() {
+export default function MergeGame({ playerName }) {
   const cvs = useRef(null)
   const g = useRef({
     balls: [],
@@ -71,6 +71,12 @@ export default function MergeGame() {
           }
         }
 
+        // 글로벌 속도 댐핑 (떨림 방지)
+        for (const b of s.balls) {
+          if (Math.abs(b.vx) < 0.3) b.vx = 0
+          if (Math.abs(b.vy) < 1.0) b.vy = 0
+        }
+
         // 합체 처리 (서브스텝 밖에서 한 번만)
         const merges = []
         for (let i = 0; i < s.balls.length; i++) {
@@ -80,7 +86,7 @@ export default function MergeGame() {
             const dx = b2.x - a.x
             const dy = b2.y - a.y
             const d = Math.sqrt(dx * dx + dy * dy)
-            if (d < a.r + b2.r && a.type === b2.type && a.type < ANIMALS.length - 1 && !a.del && !b2.del) {
+            if (d < (a.r + b2.r) * 0.85 && a.type === b2.type && a.type < ANIMALS.length - 1 && !a.del && !b2.del) {
               merges.push([i, j])
               a.del = true
               b2.del = true
@@ -126,8 +132,8 @@ export default function MergeGame() {
             s.scorePopups.push({
               x: mergeX, y: mergeY - 10, t: 0, pts, combo: s.combo
             })
-            // 파티클 생성 (8~12개)
-            const particleCount = 8 + Math.floor(Math.random() * 5)
+            // 파티클 생성 (12~20개)
+            const particleCount = 12 + Math.floor(Math.random() * 9)
             for (let p = 0; p < particleCount; p++) {
               const angle = (Math.PI * 2 * p) / particleCount + (Math.random() - 0.5) * 0.5
               const speed = 3 + Math.random() * 3
@@ -143,7 +149,7 @@ export default function MergeGame() {
           }
           s.balls = s.balls.filter(b => !b.del)
           // 화면 흔들림 (콤보가 높을수록 강하게)
-          s.shakeT = Math.min(5 + s.combo * 2, 20)
+          s.shakeT = Math.min(8 + s.combo * 3, 25)
         }
 
         // 이펙트 업데이트
@@ -348,17 +354,17 @@ export default function MergeGame() {
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: '#0a0a1a', minHeight: '100vh', padding: '8px 4px', fontFamily: 'sans-serif' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', maxWidth: 360, marginBottom: 6 }}>
         <span style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>🐾 동물 합치기</span>
-        <div style={{ display: 'flex', gap: 6 }}>
-          <button onClick={() => { setShowLeaderboard(true); setPaused(true) }} style={{ background: '#9C27B0', color: '#fff', border: 'none', borderRadius: 8, padding: '5px 12px', cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={() => { setShowLeaderboard(true); setPaused(true) }} style={{ background: '#9C27B0', color: '#fff', border: 'none', borderRadius: 12, padding: '10px 16px', cursor: 'pointer', fontSize: 18, fontWeight: 'bold', minWidth: 48, minHeight: 44 }}>
             🏆
           </button>
-          <button onClick={() => { setShowStats(true); setPaused(true) }} style={{ background: '#2196F3', color: '#fff', border: 'none', borderRadius: 8, padding: '5px 12px', cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>
+          <button onClick={() => { setShowStats(true); setPaused(true) }} style={{ background: '#2196F3', color: '#fff', border: 'none', borderRadius: 12, padding: '10px 16px', cursor: 'pointer', fontSize: 18, fontWeight: 'bold', minWidth: 48, minHeight: 44 }}>
             📊
           </button>
-          <button onClick={togglePause} disabled={over} style={{ background: paused ? '#4CAF50' : '#FFA726', color: '#fff', border: 'none', borderRadius: 8, padding: '5px 12px', cursor: over ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 'bold', opacity: over ? 0.5 : 1 }}>
+          <button onClick={togglePause} disabled={over} style={{ background: paused ? '#4CAF50' : '#FFA726', color: '#fff', border: 'none', borderRadius: 12, padding: '10px 16px', cursor: over ? 'not-allowed' : 'pointer', fontSize: 18, fontWeight: 'bold', opacity: over ? 0.5 : 1, minWidth: 48, minHeight: 44 }}>
             {paused ? '▶' : '⏸'}
           </button>
-          <button onClick={restart} style={{ background: '#e94560', color: '#fff', border: 'none', borderRadius: 8, padding: '5px 12px', cursor: 'pointer', fontSize: 13, fontWeight: 'bold' }}>🔄</button>
+          <button onClick={restart} style={{ background: '#e94560', color: '#fff', border: 'none', borderRadius: 12, padding: '10px 16px', cursor: 'pointer', fontSize: 18, fontWeight: 'bold', minWidth: 48, minHeight: 44 }}>🔄</button>
         </div>
       </div>
       <div style={{ display: 'flex', gap: 4, marginBottom: 6, flexWrap: 'wrap', justifyContent: 'center', maxWidth: 360 }}>

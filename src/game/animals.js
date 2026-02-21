@@ -1,9 +1,9 @@
 // 동물 데이터 정의
 // r: 충돌 반지름, pts: 합체 시 획득 점수
 export const ANIMALS = [
-  { name: '개미',     r: 18, pts: 1   },  // 2 → 1 (초반 부담 감소)
-  { name: '쥐',       r: 23, pts: 3   },  // 5 → 3
-  { name: '햄스터',   r: 29, pts: 6   },  // 10 → 6
+  { name: '개미',     r: 24, pts: 1   },  // 18 → 24 (가시성 개선)
+  { name: '쥐',       r: 28, pts: 3   },  // 23 → 28
+  { name: '햄스터',   r: 33, pts: 6   },  // 29 → 33
   { name: '토끼',     r: 36, pts: 12  },  // 18 → 12
   { name: '고양이',   r: 44, pts: 20  },  // 30 → 20
   { name: '강아지',   r: 52, pts: 35  },  // 48 → 35
@@ -14,5 +14,5 @@ export const ANIMALS = [
   { name: '공룡',     r: 98, pts: 500 },  // 300 → 500 (대폭 상향!)
 ]
 
-// 드롭 가능한 동물: 처음 5종으로 증가 (난이도↑)
-export const DROP_TYPES = 4
+// 드롭 가능한 동물: 처음 5종 (난이도↑)
+export const DROP_TYPES = 5

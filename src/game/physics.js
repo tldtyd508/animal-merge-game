@@ -1,9 +1,9 @@
-// 물리 상수 (빠르고 역동적으로)
-export const GRAVITY = 0.55  // 더 빠른 낙하
-export const BOUNCE = 0.35   // 더 탱탱한 반발
-export const FRICTION = 0.92 // 바닥에서 약간 미끄러짐
-export const AIR_RESISTANCE = 0.995 // 공중에서 자연스러운 이동
-export const SPACING_FACTOR = 0.96 // 동물 간 간격
+// 물리 상수
+export const GRAVITY = 0.50  // 낙하 속도
+export const BOUNCE = 0.45   // 탱탱한 반발 (역동적)
+export const FRICTION = 0.95 // 바닥 미끄러짐 (더 활발)
+export const AIR_RESISTANCE = 0.995 // 공중 저항
+export const SPACING_FACTOR = 0.92 // 동물 간 간격 (더 밀착)
 export const SUB_STEPS = 5
 
 // 게임 영역 (난이도 증가: 폭 축소, 위험선 상승)
@@ -43,7 +43,8 @@ export function updateBall(b) {
     b.y = FLOOR_Y - b.r
     b.vy = -Math.abs(b.vy) * BOUNCE
     b.vx *= FRICTION // 바닥 추가 마찰
-    if (Math.abs(b.vy) < 0.5) b.vy = 0
+    if (Math.abs(b.vy) < 1.0) b.vy = 0
+    if (Math.abs(b.vx) < 0.3) b.vx = 0
   }
 }
 
@@ -63,13 +64,14 @@ export function resolvePair(a, b) {
   const totalR = a.r + b.r
 
   // 수직 충돌(위에서 떨어지는 경우) 시 수평 보정 최소화
-  const isVerticalCollision = Math.abs(ny) > 0.7 // 각도 45도 이상
-  const horizontalFactor = isVerticalCollision ? 0.15 : 0.5
+  const isVerticalCollision = Math.abs(ny) > 0.7
+  const horizontalFactor = isVerticalCollision ? 0.3 : 0.5
+  const verticalFactor = overlap < 1 ? 0.3 : 0.65 // 미세 떨림 방지
 
   a.x -= nx * overlap * (b.r / totalR) * horizontalFactor
-  a.y -= ny * overlap * (b.r / totalR) * 0.5
+  a.y -= ny * overlap * (b.r / totalR) * verticalFactor
   b.x += nx * overlap * (a.r / totalR) * horizontalFactor
-  b.y += ny * overlap * (a.r / totalR) * 0.5
+  b.y += ny * overlap * (a.r / totalR) * verticalFactor
 
   // 상대 속도에 따른 임펄스
   const dvn = (a.vx - b.vx) * nx + (a.vy - b.vy) * ny
@@ -82,6 +84,6 @@ export function resolvePair(a, b) {
   }
 
   // 동물 간 충돌 마찰
-  a.vx *= 0.96
-  b.vx *= 0.96
+  a.vx *= 0.94
+  b.vx *= 0.94
 }

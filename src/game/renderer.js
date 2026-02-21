@@ -112,7 +112,7 @@ export function render(ctx, state, highScore = 0, paused = false) {
     const p = f.t / 30
     ctx.beginPath(); ctx.arc(f.x, f.y, f.r * (1 + p * 0.8), 0, Math.PI * 2)
     ctx.strokeStyle = `rgba(255,215,0,${1 - p})`
-    ctx.lineWidth = 3 * (1 - p); ctx.stroke()
+    ctx.lineWidth = 5 * (1 - p); ctx.stroke()
     if (f.t < 20) {
       ctx.fillStyle = `rgba(255,255,255,${0.9 - p})`
       ctx.font = 'bold 14px sans-serif'

@@ -26,7 +26,7 @@ export function drawAnimal(ctx, x, y, r, type) {
 // ── 개미: 가로로 긴 3마디 ──
 function drawAnt(ctx, r, s) {
   const seg = r * 0.32
-  ctx.strokeStyle = '#3E2723'; ctx.lineWidth = 1.5 * s
+  ctx.strokeStyle = '#6D4C41'; ctx.lineWidth = 2 * s
   for (let i = -1; i <= 1; i++) {
     const bx = i * seg * 0.8
     ctx.beginPath(); ctx.moveTo(bx, -r*0.05); ctx.lineTo(bx-r*0.3, -r*0.35); ctx.stroke()
@@ -36,18 +36,18 @@ function drawAnt(ctx, r, s) {
   }
   ctx.beginPath(); ctx.moveTo(-seg*1.1, -r*0.1); ctx.quadraticCurveTo(-seg*1.5, -r*0.55, -seg*1.2, -r*0.5); ctx.stroke()
   ctx.beginPath(); ctx.moveTo(-seg*1.1, 0); ctx.quadraticCurveTo(-seg*1.5, 0, -seg*1.3, -r*0.3); ctx.stroke()
-  ctx.fillStyle = '#5D4037'
+  ctx.fillStyle = '#8D6E63'
   ctx.beginPath(); ctx.ellipse(seg*0.9, 0, seg*0.55, r*0.35, 0, 0, Math.PI*2); ctx.fill()
-  ctx.fillStyle = '#6D4C41'
+  ctx.fillStyle = '#A1887F'
   ctx.beginPath(); ctx.ellipse(0, 0, seg*0.35, r*0.22, 0, 0, Math.PI*2); ctx.fill()
-  ctx.fillStyle = '#5D4037'
+  ctx.fillStyle = '#8D6E63'
   ctx.beginPath(); ctx.ellipse(-seg*0.8, 0, seg*0.4, r*0.28, 0, 0, Math.PI*2); ctx.fill()
   ctx.fillStyle = '#fff'
-  ctx.beginPath(); ctx.arc(-seg*0.95, -r*0.08, r*0.1, 0, Math.PI*2); ctx.fill()
-  ctx.beginPath(); ctx.arc(-seg*0.95, r*0.08, r*0.1, 0, Math.PI*2); ctx.fill()
+  ctx.beginPath(); ctx.arc(-seg*0.95, -r*0.08, r*0.14, 0, Math.PI*2); ctx.fill()
+  ctx.beginPath(); ctx.arc(-seg*0.95, r*0.08, r*0.14, 0, Math.PI*2); ctx.fill()
   ctx.fillStyle = '#000'
-  ctx.beginPath(); ctx.arc(-seg*1.0, -r*0.08, r*0.055, 0, Math.PI*2); ctx.fill()
-  ctx.beginPath(); ctx.arc(-seg*1.0, r*0.08, r*0.055, 0, Math.PI*2); ctx.fill()
+  ctx.beginPath(); ctx.arc(-seg*1.0, -r*0.08, r*0.07, 0, Math.PI*2); ctx.fill()
+  ctx.beginPath(); ctx.arc(-seg*1.0, r*0.08, r*0.07, 0, Math.PI*2); ctx.fill()
 }
 
 // ── 쥐: 납작 동글 + 긴 꼬리 ──
