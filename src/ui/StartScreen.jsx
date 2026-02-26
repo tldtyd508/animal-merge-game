@@ -47,7 +47,6 @@ export default function StartScreen({ onStart }) {
     if (!canvas) return
     const ctx = canvas.getContext('2d')
     ctx.clearRect(0, 0, 160, 160)
-    // 햄스터를 중앙에 크게 그리기
     drawAnimal(ctx, 80, 80, 60, 2)
   }, [])
 
@@ -79,34 +78,50 @@ export default function StartScreen({ onStart }) {
       flexDirection: 'column',
       alignItems: 'center',
       justifyContent: 'center',
-      background: '#0a0a1a',
+      background: '#1A1520',
       minHeight: '100vh',
       padding: '20px',
-      fontFamily: 'sans-serif'
+      fontFamily: "'Noto Sans KR', sans-serif",
+      position: 'relative',
+      overflow: 'hidden',
     }}>
+      {/* 배경 장식 */}
+      <div style={{
+        position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+        background: 'radial-gradient(circle at 20% 30%, rgba(45, 143, 78, 0.06) 0%, transparent 50%), radial-gradient(circle at 80% 70%, rgba(242, 153, 74, 0.04) 0%, transparent 50%)',
+        pointerEvents: 'none',
+      }} />
+
       {/* 마스코트 */}
-      <canvas ref={mascotRef} width={160} height={160} style={{ marginBottom: 16 }} />
+      <canvas ref={mascotRef} width={160} height={160} style={{ marginBottom: 16, position: 'relative' }} />
 
       {/* 타이틀 */}
-      <h1 style={{ color: '#fff', fontSize: 32, fontWeight: 'bold', margin: 0, marginBottom: 8 }}>
-        동물 합치기
+      <h1 style={{
+        fontFamily: "'Black Han Sans', sans-serif",
+        fontSize: 36, color: '#F5F0FF',
+        margin: 0, marginBottom: 8, letterSpacing: -1,
+        position: 'relative',
+      }}>
+        동물합치기
       </h1>
-      <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 16, margin: 0, marginBottom: 32 }}>
-        같은 동물을 합쳐서 진화!
+      <p style={{
+        color: '#B8A9CC', fontSize: 15, fontWeight: 500,
+        margin: 0, marginBottom: 32,
+        position: 'relative',
+      }}>
+        같은 동물을 합쳐 진화!
       </p>
 
       {/* 로그인 상태 */}
       {authUser && (
         <div style={{
-          background: 'rgba(76, 175, 80, 0.15)',
-          border: '1px solid rgba(76, 175, 80, 0.4)',
-          padding: 12,
-          borderRadius: 12,
-          marginBottom: 16,
-          width: 280,
-          textAlign: 'center'
+          background: 'rgba(39, 174, 96, 0.1)',
+          border: '1px solid rgba(39, 174, 96, 0.25)',
+          padding: '10px 16px', borderRadius: 10,
+          marginBottom: 16, width: 280, textAlign: 'center',
+          position: 'relative',
         }}>
-          <span style={{ color: '#4CAF50', fontSize: 14 }}>
+          <span style={{ color: '#27AE60', fontSize: 13 }}>
             {authUser.email} 로그인됨
           </span>
         </div>
@@ -121,17 +136,12 @@ export default function StartScreen({ onStart }) {
         maxLength={20}
         onKeyDown={(e) => e.key === 'Enter' && handleStart()}
         style={{
-          width: 280,
-          padding: 14,
-          borderRadius: 12,
-          border: '2px solid rgba(255,255,255,0.3)',
-          background: 'rgba(255,255,255,0.1)',
-          color: '#fff',
-          fontSize: 16,
-          textAlign: 'center',
-          marginBottom: 16,
-          boxSizing: 'border-box',
-          outline: 'none'
+          width: 280, padding: '14px 16px', borderRadius: 12,
+          border: '2px solid #4A3D5C', background: '#2A2235',
+          color: '#F5F0FF', fontFamily: "'Noto Sans KR', sans-serif",
+          fontSize: 15, textAlign: 'center',
+          marginBottom: 12, boxSizing: 'border-box', outline: 'none',
+          position: 'relative',
         }}
       />
 
@@ -141,23 +151,23 @@ export default function StartScreen({ onStart }) {
           onClick={handleGoogleLogin}
           disabled={loading}
           style={{
-            width: 280,
-            padding: 14,
-            background: '#fff',
-            border: 'none',
-            borderRadius: 12,
-            color: '#333',
-            fontSize: 15,
-            fontWeight: '600',
+            width: 280, padding: 13,
+            background: '#fff', border: 'none', borderRadius: 12,
+            color: '#333', fontFamily: "'Noto Sans KR', sans-serif",
+            fontSize: 14, fontWeight: 600,
             cursor: loading ? 'not-allowed' : 'pointer',
             marginBottom: 12,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 8
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+            position: 'relative',
           }}
         >
-          <span style={{ fontSize: 18 }}>G</span> Google로 로그인
+          <span style={{
+            fontWeight: 700, fontSize: 16,
+            background: 'linear-gradient(135deg, #4285F4, #EA4335, #FBBC05, #34A853)',
+            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+          }}>G</span>
+          Google로 로그인
         </button>
       )}
 
@@ -165,22 +175,19 @@ export default function StartScreen({ onStart }) {
       <button
         onClick={handleStart}
         style={{
-          width: 280,
-          padding: 16,
-          background: '#e94560',
-          border: 'none',
-          borderRadius: 12,
-          color: '#fff',
-          fontSize: 18,
-          fontWeight: 'bold',
-          cursor: 'pointer',
-          marginBottom: 16
+          width: 280, padding: 16,
+          background: '#2D8F4E', border: 'none', borderRadius: 12,
+          color: '#fff', fontFamily: "'Noto Sans KR', sans-serif",
+          fontSize: 17, fontWeight: 700,
+          cursor: 'pointer', marginBottom: 16,
+          boxShadow: '0 4px 12px rgba(45, 143, 78, 0.3)',
+          position: 'relative',
         }}
       >
         {authUser ? '게임 시작' : '게스트로 시작'}
       </button>
 
-      <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12, margin: 0 }}>
+      <p style={{ color: '#7A6B8A', fontSize: 12, margin: 0, position: 'relative' }}>
         랭킹에 등록하려면 Google 로그인을 권장합니다
       </p>
     </div>

@@ -38,6 +38,24 @@ export function playDrop() {
   } catch (e) { /* ignore */ }
 }
 
+// 자동드롭 사운드: 낮은 경고 톤
+export function playAutoDrop() {
+  if (muted) return
+  try {
+    const ctx = getCtx()
+    if (!ctx) return
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    osc.connect(gain); gain.connect(ctx.destination)
+    osc.type = 'sine'
+    osc.frequency.setValueAtTime(300, ctx.currentTime)
+    osc.frequency.exponentialRampToValueAtTime(200, ctx.currentTime + 0.12)
+    gain.gain.setValueAtTime(0.15, ctx.currentTime)
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15)
+    osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.15)
+  } catch (e) { /* ignore */ }
+}
+
 // 합체 사운드: 동물 레벨에 따라 피치 상승
 export function playMerge(animalType) {
   if (muted) return

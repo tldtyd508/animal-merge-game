@@ -4,6 +4,37 @@ import { getLeaderboard, submitScore } from '../api/leaderboard'
 import { getUserId, getUserNickname, setUserNickname, getShortUserId } from '../utils/userId'
 import { supabase, signInWithGoogle, signOut, getCurrentUser, onAuthStateChange } from '../lib/supabase'
 
+// 메달 뱃지 컴포넌트
+function RankBadge({ rank }) {
+  if (rank <= 3) {
+    const colors = {
+      1: 'linear-gradient(135deg, #F7C948, #D4A62A)',
+      2: 'linear-gradient(135deg, #C0C0C0, #A0A0A0)',
+      3: 'linear-gradient(135deg, #CD7F32, #A0622C)',
+    }
+    return (
+      <div style={{
+        width: 28, height: 28, borderRadius: '50%',
+        background: colors[rank], display: 'flex',
+        alignItems: 'center', justifyContent: 'center',
+        fontFamily: "'Black Han Sans', sans-serif",
+        fontSize: 14, fontWeight: 700, color: '#1A1520', flexShrink: 0,
+      }}>
+        {rank}
+      </div>
+    )
+  }
+  return (
+    <div style={{
+      width: 28, textAlign: 'center', color: '#7A6B8A',
+      fontFamily: "'Noto Sans KR', sans-serif",
+      fontSize: 14, fontWeight: 500, flexShrink: 0,
+    }}>
+      {rank}
+    </div>
+  )
+}
+
 export default function Leaderboard({ isOpen, onClose, currentScore, highestAnimal }) {
   const [leaderboard, setLeaderboard] = useState([])
   const [loading, setLoading] = useState(false)
@@ -17,18 +48,15 @@ export default function Leaderboard({ isOpen, onClose, currentScore, highestAnim
       loadLeaderboard()
       loadAuthUser()
 
-      // 저장된 닉네임 불러오기
       const savedNickname = getUserNickname()
       if (savedNickname) {
         setPlayerName(savedNickname)
       }
     }
 
-    // Auth 상태 변화 감지
     const { data: { subscription } } = onAuthStateChange((event, session) => {
       setAuthUser(session?.user || null)
       if (session?.user) {
-        // 로그인하면 사용자 이름을 자동으로 설정
         const name = session.user.user_metadata?.full_name ||
                     session.user.user_metadata?.name ||
                     session.user.email?.split('@')[0]
@@ -85,9 +113,7 @@ export default function Leaderboard({ isOpen, onClose, currentScore, highestAnim
     }
 
     setLoading(true)
-    // 닉네임 저장
     setUserNickname(playerName.trim())
-    // 점수 제출 (authUser가 있으면 authUserId 사용, 없으면 userId 사용)
     await submitScore(
       authUser ? null : userId,
       authUser ? authUser.id : null,
@@ -104,58 +130,43 @@ export default function Leaderboard({ isOpen, onClose, currentScore, highestAnim
 
   return (
     <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      background: 'rgba(0,0,0,0.85)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 1000,
-      overflowY: 'auto'
+      position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+      background: 'rgba(26, 21, 32, 0.92)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      zIndex: 1000, overflowY: 'auto',
     }}>
       <div style={{
-        background: '#16213e',
-        borderRadius: 16,
-        padding: 24,
-        maxWidth: 420,
-        width: '90%',
-        maxHeight: '90vh',
-        overflowY: 'auto',
-        boxShadow: '0 8px 32px rgba(0,0,0,0.5)'
+        background: '#2A2235', borderRadius: 16, padding: 24,
+        maxWidth: 420, width: '90%', maxHeight: '90vh', overflowY: 'auto',
+        boxShadow: '0 0 0 1px rgba(74, 61, 92, 0.5), 0 16px 40px rgba(0,0,0,0.4)',
       }}>
-        <h2 style={{ color: '#fff', marginBottom: 20, textAlign: 'center', fontSize: 24 }}>
-          🏆 랭킹
+        <h2 style={{
+          fontFamily: "'Black Han Sans', sans-serif",
+          color: '#F5F0FF', fontSize: 22, textAlign: 'center',
+          marginBottom: 20, marginTop: 0,
+        }}>
+          랭킹
         </h2>
 
         {/* 로그인 상태 표시 */}
         {authUser && (
           <div style={{
-            background: 'rgba(76, 175, 80, 0.1)',
-            border: '1px solid rgba(76, 175, 80, 0.3)',
-            padding: 12,
-            borderRadius: 8,
-            marginBottom: 16,
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center'
+            background: 'rgba(39, 174, 96, 0.1)',
+            border: '1px solid rgba(39, 174, 96, 0.25)',
+            padding: 12, borderRadius: 10, marginBottom: 16,
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
           }}>
             <div>
-              <div style={{ color: '#4CAF50', fontSize: 12, marginBottom: 4 }}>✓ 로그인됨</div>
-              <div style={{ color: '#fff', fontSize: 14 }}>{authUser.email}</div>
+              <div style={{ color: '#27AE60', fontSize: 12, marginBottom: 4, fontFamily: "'Noto Sans KR', sans-serif" }}>로그인됨</div>
+              <div style={{ color: '#F5F0FF', fontSize: 14, fontFamily: "'Noto Sans KR', sans-serif" }}>{authUser.email}</div>
             </div>
             <button
               onClick={handleLogout}
               style={{
-                background: 'rgba(255,255,255,0.1)',
-                border: 'none',
-                color: '#fff',
-                padding: '6px 12px',
-                borderRadius: 6,
-                cursor: 'pointer',
-                fontSize: 12
+                background: '#352B42', border: '1px solid #4A3D5C',
+                color: '#B8A9CC', padding: '6px 12px', borderRadius: 6,
+                cursor: 'pointer', fontSize: 12,
+                fontFamily: "'Noto Sans KR', sans-serif",
               }}
             >
               로그아웃
@@ -166,24 +177,21 @@ export default function Leaderboard({ isOpen, onClose, currentScore, highestAnim
         {/* 점수 제출 폼 */}
         {currentScore > 0 && !submitted && (
           <div style={{
-            background: 'rgba(255,255,255,0.05)',
-            padding: 16,
-            borderRadius: 8,
-            marginBottom: 20
+            background: '#352B42', padding: 16, borderRadius: 12, marginBottom: 20,
           }}>
             {!authUser && (
-              <div style={{ color: 'rgba(255,255,255,0.5)', marginBottom: 12, fontSize: 11 }}>
-                익명 ID: <code style={{ background: 'rgba(0,0,0,0.3)', padding: '2px 6px', borderRadius: 4 }}>{getShortUserId(userId)}</code>
+              <div style={{ color: '#7A6B8A', marginBottom: 12, fontSize: 11, fontFamily: "'Noto Sans KR', sans-serif" }}>
+                익명 ID: <code style={{ background: '#2A2235', padding: '2px 6px', borderRadius: 4, color: '#B8A9CC' }}>{getShortUserId(userId)}</code>
               </div>
             )}
-            <div style={{ color: '#fff', marginBottom: 12, fontSize: 14 }}>
+            <div style={{ color: '#F5F0FF', marginBottom: 12, fontSize: 14, fontFamily: "'Noto Sans KR', sans-serif" }}>
               당신의 점수: <strong>{currentScore}점</strong>
             </div>
 
             {/* OAuth 로그인 버튼 */}
             {!authUser && (
               <div style={{ marginBottom: 16 }}>
-                <div style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, marginBottom: 8 }}>
+                <div style={{ color: '#B8A9CC', fontSize: 12, marginBottom: 8, fontFamily: "'Noto Sans KR', sans-serif" }}>
                   로그인하여 기록 관리하기:
                 </div>
                 <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
@@ -191,25 +199,23 @@ export default function Leaderboard({ isOpen, onClose, currentScore, highestAnim
                     onClick={handleGoogleLogin}
                     disabled={loading}
                     style={{
-                      width: '100%',
-                      background: '#fff',
-                      border: 'none',
-                      color: '#333',
-                      padding: '10px 16px',
-                      borderRadius: 6,
-                      cursor: 'pointer',
-                      fontSize: 13,
-                      fontWeight: '600',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 6
+                      width: '100%', background: '#fff', border: 'none',
+                      color: '#333', padding: '10px 16px', borderRadius: 8,
+                      cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                      fontFamily: "'Noto Sans KR', sans-serif",
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
                     }}
                   >
-                    <span>🔵</span> Google 로그인
+                    <span style={{
+                      fontWeight: 700, fontSize: 15,
+                      background: 'linear-gradient(135deg, #4285F4, #EA4335, #FBBC05, #34A853)',
+                      WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+                    }}>G</span>
+                    Google 로그인
                   </button>
                 </div>
-                <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, textAlign: 'center' }}>
+                <div style={{ color: '#7A6B8A', fontSize: 11, textAlign: 'center', fontFamily: "'Noto Sans KR', sans-serif" }}>
                   또는 익명으로 제출
                 </div>
               </div>
@@ -222,30 +228,24 @@ export default function Leaderboard({ isOpen, onClose, currentScore, highestAnim
               onChange={(e) => setPlayerName(e.target.value)}
               maxLength={20}
               style={{
-                width: '100%',
-                padding: 12,
-                borderRadius: 6,
-                border: '1px solid rgba(255,255,255,0.2)',
-                background: 'rgba(255,255,255,0.1)',
-                color: '#fff',
-                fontSize: 14,
-                marginBottom: 12,
-                boxSizing: 'border-box'
+                width: '100%', padding: '12px 14px', borderRadius: 8,
+                border: '1.5px solid #4A3D5C', background: '#2A2235',
+                color: '#F5F0FF', fontFamily: "'Noto Sans KR', sans-serif",
+                fontSize: 14, marginBottom: 10, boxSizing: 'border-box', outline: 'none',
               }}
             />
             <button
               onClick={handleSubmit}
               disabled={loading}
               style={{
-                width: '100%',
-                padding: 12,
-                background: loading ? '#555' : '#4CAF50',
-                border: 'none',
-                borderRadius: 6,
-                color: '#fff',
-                fontSize: 14,
-                fontWeight: 'bold',
+                width: '100%', padding: 12,
+                background: loading ? '#3D3350' : '#2D8F4E',
+                border: 'none', borderRadius: 8,
+                color: loading ? '#7A6B8A' : '#fff',
+                fontFamily: "'Noto Sans KR', sans-serif",
+                fontSize: 14, fontWeight: 700,
                 cursor: loading ? 'not-allowed' : 'pointer',
+                boxShadow: loading ? 'none' : '0 2px 8px rgba(45, 143, 78, 0.25)',
               }}
             >
               {loading ? '제출 중...' : '점수 제출'}
@@ -256,62 +256,57 @@ export default function Leaderboard({ isOpen, onClose, currentScore, highestAnim
         {/* 제출 완료 메시지 */}
         {submitted && (
           <div style={{
-            background: 'rgba(76, 175, 80, 0.2)',
-            padding: 16,
-            borderRadius: 8,
-            marginBottom: 20,
-            textAlign: 'center',
-            color: '#4CAF50'
+            background: 'rgba(39, 174, 96, 0.1)',
+            border: '1px solid rgba(39, 174, 96, 0.2)',
+            padding: 14, borderRadius: 10, marginBottom: 20,
+            textAlign: 'center', color: '#27AE60', fontSize: 14, fontWeight: 500,
+            fontFamily: "'Noto Sans KR', sans-serif",
           }}>
-            ✓ 점수가 제출되었습니다!
+            점수가 제출되었습니다!
           </div>
         )}
 
         {/* 랭킹 목록 */}
-        <div style={{
-          maxHeight: '400px',
-          overflowY: 'auto',
-          marginBottom: 20
-        }}>
+        <div style={{ maxHeight: 400, overflowY: 'auto', marginBottom: 20 }}>
           {loading && leaderboard.length === 0 ? (
-            <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.5)', padding: 40 }}>
+            <div style={{ textAlign: 'center', color: '#7A6B8A', padding: 40, fontFamily: "'Noto Sans KR', sans-serif" }}>
               로딩 중...
             </div>
           ) : leaderboard.length === 0 ? (
-            <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.5)', padding: 40 }}>
+            <div style={{ textAlign: 'center', color: '#7A6B8A', padding: 40, fontFamily: "'Noto Sans KR', sans-serif" }}>
               아직 랭킹이 없습니다
             </div>
           ) : (
-            leaderboard.map((entry, index) => (
-              <div
-                key={`${entry.userId}-${entry.timestamp}`}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: 12,
-                  marginBottom: 8,
-                  background: index < 3 ? 'rgba(255, 215, 0, 0.1)' : 'rgba(255,255,255,0.05)',
-                  borderRadius: 8,
-                  border: index < 3 ? '1px solid rgba(255, 215, 0, 0.3)' : 'none'
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <span style={{
-                    fontSize: index < 3 ? 20 : 14,
-                    fontWeight: 'bold',
-                    color: index < 3 ? '#FFD700' : 'rgba(255,255,255,0.5)',
-                    minWidth: 30
-                  }}>
-                    {index < 3 ? ['🥇', '🥈', '🥉'][index] : `${index + 1}.`}
-                  </span>
-                  <div>
-                    <div style={{ color: '#fff', fontSize: 14, fontWeight: 'bold' }}>
+            leaderboard.map((entry, index) => {
+              const rank = index + 1
+              const isTop3 = rank <= 3
+              return (
+                <div
+                  key={`${entry.userId}-${entry.timestamp}`}
+                  style={{
+                    display: 'flex', alignItems: 'center',
+                    padding: '12px 14px', borderRadius: 10,
+                    marginBottom: 6, gap: 12,
+                    background: isTop3 ? 'rgba(247, 201, 72, 0.06)' : 'transparent',
+                    border: isTop3 ? '1px solid rgba(247, 201, 72, 0.12)' : '1px solid transparent',
+                  }}
+                >
+                  <RankBadge rank={rank} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{
+                      color: '#F5F0FF', fontSize: 14, fontWeight: 600,
+                      fontFamily: "'Noto Sans KR', sans-serif",
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}>
                       {entry.playerName}
                     </div>
-                    <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <div style={{
+                      color: '#7A6B8A', fontSize: 11,
+                      display: 'flex', gap: 8, alignItems: 'center',
+                      fontFamily: "'Noto Sans KR', sans-serif",
+                    }}>
                       {entry.userId && (
-                        <code style={{ background: 'rgba(0,0,0,0.3)', padding: '1px 4px', borderRadius: 3 }}>
+                        <code style={{ background: '#2A2235', padding: '1px 4px', borderRadius: 3, color: '#7A6B8A' }}>
                           {getShortUserId(entry.userId)}
                         </code>
                       )}
@@ -320,12 +315,16 @@ export default function Leaderboard({ isOpen, onClose, currentScore, highestAnim
                         : ''}
                     </div>
                   </div>
+                  <div style={{
+                    color: '#F7C948',
+                    fontFamily: "'Black Han Sans', sans-serif",
+                    fontSize: 16,
+                  }}>
+                    {entry.score.toLocaleString()}
+                  </div>
                 </div>
-                <div style={{ color: '#FFD700', fontSize: 16, fontWeight: 'bold' }}>
-                  {entry.score.toLocaleString()}
-                </div>
-              </div>
-            ))
+              )
+            })
           )}
         </div>
 
@@ -333,14 +332,11 @@ export default function Leaderboard({ isOpen, onClose, currentScore, highestAnim
         <button
           onClick={onClose}
           style={{
-            width: '100%',
-            padding: 12,
-            background: 'rgba(255,255,255,0.1)',
-            border: '1px solid rgba(255,255,255,0.2)',
-            borderRadius: 6,
-            color: '#fff',
-            fontSize: 14,
-            cursor: 'pointer'
+            width: '100%', padding: 12,
+            background: '#352B42', border: '1px solid #4A3D5C',
+            borderRadius: 10, color: '#B8A9CC',
+            fontFamily: "'Noto Sans KR', sans-serif",
+            fontSize: 14, fontWeight: 500, cursor: 'pointer',
           }}
         >
           닫기

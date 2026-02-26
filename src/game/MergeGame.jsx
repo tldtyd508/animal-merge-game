@@ -2,19 +2,28 @@ import { useEffect, useRef, useState } from 'react'
 import { ANIMALS, DROP_TYPES } from './animals'
 import { CANVAS_W as W, CANVAS_H as H, LEFT, RIGHT, DROP_Y, DANGER_Y, SUB_STEPS, nextId, updateBall, resolvePair, setGravityScale } from './physics'
 import { render } from './renderer'
-import { playDrop, playMerge, playCombo, playGameOver, toggleMute, vibrate } from './sound'
+import { playDrop, playAutoDrop, playMerge, playCombo, playGameOver, toggleMute, vibrate } from './sound'
+import { Volume2, VolumeX, Settings, Pause, Play, RotateCcw, Trophy, BarChart3, Share2 } from 'lucide-react'
 import GameStats from '../ui/GameStats'
 import Leaderboard from '../ui/Leaderboard'
 
-// ── 난이도 시스템 ──
+// ── 난이도 시스템 (개선) ──
 const DIFFICULTIES = [
-  { minScore: 0,    level: 1, gravityScale: 1.0,  cooldown: 500, autoDropMs: 0,     dropWeights: [1,1,1,1,1] },
-  { minScore: 300,  level: 2, gravityScale: 1.1,  cooldown: 450, autoDropMs: 10000, dropWeights: [1,1,1,1,1] },
-  { minScore: 800,  level: 3, gravityScale: 1.25, cooldown: 400, autoDropMs: 7000,  dropWeights: [0.7,1,1,1.2,1.2] },
-  { minScore: 1500, level: 4, gravityScale: 1.4,  cooldown: 350, autoDropMs: 5000,  dropWeights: [0.5,0.8,1,1.3,1.5] },
-  { minScore: 3000, level: 5, gravityScale: 1.6,  cooldown: 300, autoDropMs: 3500,  dropWeights: [0.3,0.7,1,1.3,1.5] },
-  { minScore: 5000, level: 6, gravityScale: 1.8,  cooldown: 250, autoDropMs: 2500,  dropWeights: [0.2,0.5,1,1.5,1.8] },
+  { minScore: 0,    level: 1, gravityScale: 1.0,  cooldown: 500, autoDropMs: 15000, dropWeights: [1,1,1,1,1] },
+  { minScore: 300,  level: 2, gravityScale: 1.05, cooldown: 475, autoDropMs: 12000, dropWeights: [1,1,1,1,1] },
+  { minScore: 800,  level: 3, gravityScale: 1.15, cooldown: 425, autoDropMs: 8000,  dropWeights: [1.2,1,1,0.8,0.6] },
+  { minScore: 1500, level: 4, gravityScale: 1.3,  cooldown: 375, autoDropMs: 5500,  dropWeights: [1.4,1.1,1,0.7,0.5] },
+  { minScore: 3000, level: 5, gravityScale: 1.5,  cooldown: 325, autoDropMs: 4000,  dropWeights: [1.6,1.2,1,0.6,0.4] },
+  { minScore: 5000, level: 6, gravityScale: 1.7,  cooldown: 275, autoDropMs: 3000,  dropWeights: [1.8,1.3,1,0.5,0.3] },
 ]
+
+const LEVEL_UP_HINTS = {
+  2: '자동드롭이 빨라집니다',
+  3: '중력이 강해집니다',
+  4: '더 빨라집니다!',
+  5: '최고 속도에 가까워지고 있어요',
+  6: '최종 난이도! 행운을 빕니다',
+}
 
 function getDifficulty(score) {
   for (let i = DIFFICULTIES.length - 1; i >= 0; i--) {
@@ -33,8 +42,22 @@ function weightedRandom(weights) {
   return weights.length - 1
 }
 
+// Pawprint SVG icon component
+function PawprintIcon({ size = 24, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
+      <ellipse cx="8" cy="8" rx="3" ry="3.5" />
+      <ellipse cx="16" cy="8" rx="3" ry="3.5" />
+      <ellipse cx="5" cy="14" rx="2.5" ry="3" />
+      <ellipse cx="19" cy="14" rx="2.5" ry="3" />
+      <ellipse cx="12" cy="17" rx="5" ry="4" />
+    </svg>
+  )
+}
+
 export default function MergeGame({ playerName }) {
   const cvs = useRef(null)
+  const lastFrameTimeRef = useRef(0)
   const g = useRef({
     balls: [],
     score: 0,
@@ -58,8 +81,12 @@ export default function MergeGame({ playerName }) {
     level: 1,
     prevLevel: 1,
     levelUpT: 0,
+    levelUpHint: '',
     dropTimer: 0,
     autoDropMax: 0,
+    // 자동드롭 이펙트
+    autoDropFx: 0,
+    autoDropHintShown: false,
   })
   const [score, setScore] = useState(0)
   const [highScore, setHighScore] = useState(() => {
@@ -75,6 +102,7 @@ export default function MergeGame({ playerName }) {
   const [muted, setMuted] = useState(false)
   const [showStats, setShowStats] = useState(false)
   const [showLeaderboard, setShowLeaderboard] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
   const [showTutorial, setShowTutorial] = useState(() => {
     return !localStorage.getItem('animalGameTutorialSeen')
   })
@@ -96,8 +124,15 @@ export default function MergeGame({ playerName }) {
 
   useEffect(() => {
     let raf
-    const step = () => {
+    lastFrameTimeRef.current = performance.now()
+
+    const step = (timestamp) => {
       const s = g.current
+
+      // 실시간 delta time 계산
+      const rawDt = timestamp - lastFrameTimeRef.current
+      const dt = Math.min(rawDt, 100) // dt cap: 탭 비활성 복귀 시 큰 점프 방지
+      lastFrameTimeRef.current = timestamp
 
       if (!s.over && !paused) {
         // ── 난이도 적용 ──
@@ -109,13 +144,14 @@ export default function MergeGame({ playerName }) {
         // 레벨업 감지
         if (diff.level > s.prevLevel) {
           s.levelUpT = 90
+          s.levelUpHint = LEVEL_UP_HINTS[diff.level] || ''
           vibrate(100)
         }
         s.prevLevel = diff.level
 
-        // ── 자동 드롭 타이머 (테트리스식 압박) ──
+        // ── 자동 드롭 타이머 (실시간 delta time 기반) ──
         if (s.canDrop && diff.autoDropMs > 0) {
-          s.dropTimer += 16.67
+          s.dropTimer += dt
           if (s.dropTimer >= diff.autoDropMs) {
             const r = ANIMALS[s.cur].r
             const cx = Math.max(LEFT + r, Math.min(RIGHT - r, s.dropX))
@@ -124,7 +160,20 @@ export default function MergeGame({ playerName }) {
               x: cx, y: DROP_Y, vx: 0, vy: 0,
               r, born: Date.now(),
             })
-            playDrop()
+            playAutoDrop()
+            s.autoDropFx = 20
+
+            // 첫 자동드롭 안내
+            if (!s.autoDropHintShown) {
+              const hintSeen = localStorage.getItem('autoDropHintSeen')
+              if (!hintSeen) {
+                s.autoDropHintShown = true
+                localStorage.setItem('autoDropHintSeen', '1')
+              } else {
+                s.autoDropHintShown = true
+              }
+            }
+
             s.cur = s.nxt
             s.nxt = s.nxt2
             s.nxt2 = weightedRandom(diff.dropWeights)
@@ -136,6 +185,9 @@ export default function MergeGame({ playerName }) {
         } else if (!s.canDrop) {
           s.dropTimer = 0
         }
+
+        // 자동드롭 이펙트 타이머 감소
+        if (s.autoDropFx > 0) s.autoDropFx--
 
         // 물리 서브스텝
         for (let sub = 0; sub < SUB_STEPS; sub++) {
@@ -385,24 +437,34 @@ export default function MergeGame({ playerName }) {
     s.nxt2 = Math.floor(Math.random() * DROP_TYPES)
     s.dropX = W / 2
     s.canDrop = true; s.over = false; s.isNewHigh = false; s.maxAnimal = 0; s.maxCombo = 0
-    s.level = 1; s.prevLevel = 1; s.levelUpT = 0; s.dropTimer = 0; s.autoDropMax = 0
-    setScore(0); setOver(false); setPaused(false)
+    s.level = 1; s.prevLevel = 1; s.levelUpT = 0; s.levelUpHint = ''
+    s.dropTimer = 0; s.autoDropMax = 0; s.autoDropFx = 0; s.autoDropHintShown = false
+    setScore(0); setOver(false); setPaused(false); setShowSettings(false)
     gameStartTime.current = Date.now()
     maxAnimalReached.current = 0
     maxComboReached.current = 0
+    lastFrameTimeRef.current = performance.now()
   }
 
-  // 점수 공유
+  // 점수 공유 (개선)
   const shareScore = async () => {
     const canvas = cvs.current
     if (!canvas) return
+    const s = g.current
+    const maxAnimalName = s.maxAnimal > 0 ? ANIMALS[s.maxAnimal]?.name : ''
+    const maxCombo = s.maxCombo || 0
     try {
       const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'))
+      const shareText = [
+        `동물 합치기에서 ${score}점을 달성했어요!`,
+        `LV.${s.level}${maxAnimalName ? ` | 최고 동물: ${maxAnimalName}` : ''}${maxCombo > 1 ? ` | ${maxCombo}콤보` : ''}`,
+        '도전해보세요!'
+      ].join('\n')
       if (navigator.share && blob) {
         const file = new File([blob], 'animal-game.png', { type: 'image/png' })
         await navigator.share({
           title: '동물 합치기',
-          text: `동물 합치기에서 ${score}점을 달성했어요! (LV.${g.current.level})`,
+          text: shareText,
           files: [file]
         })
       } else if (blob) {
@@ -420,36 +482,133 @@ export default function MergeGame({ playerName }) {
     }
   }
 
-  const btnStyle = {
-    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-    background: 'rgba(255,255,255,0.1)', color: '#fff', border: 'none',
-    borderRadius: 10, padding: '6px 10px', cursor: 'pointer',
-    fontSize: 16, minWidth: 44, minHeight: 44,
+  // 설정 패널 외부 클릭 시 닫기
+  const settingsRef = useRef(null)
+  useEffect(() => {
+    if (!showSettings) return
+    const handleClickOutside = (e) => {
+      if (settingsRef.current && !settingsRef.current.contains(e.target)) {
+        setShowSettings(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('touchstart', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('touchstart', handleClickOutside)
+    }
+  }, [showSettings])
+
+  const headerBtnStyle = {
+    width: 40, height: 40, border: 'none', borderRadius: 10,
+    background: '#352B42', color: '#B8A9CC',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    cursor: 'pointer', transition: 'background 0.15s, transform 0.1s',
+    position: 'relative',
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: '#0a0a1a', minHeight: '100vh', padding: '8px 4px', fontFamily: 'sans-serif' }}>
+    <div style={{
+      display: 'flex', flexDirection: 'column', alignItems: 'center',
+      background: '#1A1520', minHeight: '100vh', padding: '8px 4px',
+      fontFamily: "'Noto Sans KR', sans-serif"
+    }}>
       {/* 헤더 */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', maxWidth: 360, marginBottom: 6 }}>
-        <span style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>🐾 동물 합치기</span>
-        <div style={{ display: 'flex', gap: 5 }}>
-          <button onClick={() => { setShowLeaderboard(true); setPaused(true) }} style={{ ...btnStyle, background: 'rgba(156,39,176,0.3)' }}>
-            <span>🏆</span><span style={{ fontSize: 9, opacity: 0.8 }}>랭킹</span>
+      <div style={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        width: '100%', maxWidth: 360, padding: '8px 4px', marginBottom: 4
+      }}>
+        {/* 로고 */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <PawprintIcon size={24} color="#2D8F4E" />
+          <span style={{
+            fontFamily: "'Black Han Sans', sans-serif",
+            fontSize: 20, color: '#F5F0FF', letterSpacing: -0.5
+          }}>
+            동물합치기
+          </span>
+        </div>
+        {/* 버튼 그룹 */}
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={handleToggleMute}
+            style={{
+              ...headerBtnStyle,
+              ...(muted ? { background: 'rgba(235, 87, 87, 0.15)', color: '#EB5757' } : {})
+            }}
+          >
+            {muted ? <VolumeX size={20} /> : <Volume2 size={20} />}
           </button>
-          <button onClick={() => { setShowStats(true); setPaused(true) }} style={{ ...btnStyle, background: 'rgba(33,150,243,0.3)' }}>
-            <span>📊</span><span style={{ fontSize: 9, opacity: 0.8 }}>통계</span>
-          </button>
-          <button onClick={handleToggleMute} style={{ ...btnStyle, background: muted ? 'rgba(244,67,54,0.3)' : 'rgba(76,175,80,0.3)' }}>
-            <span>{muted ? '🔇' : '🔊'}</span><span style={{ fontSize: 9, opacity: 0.8 }}>소리</span>
-          </button>
-          <button onClick={togglePause} disabled={over} style={{ ...btnStyle, background: paused ? 'rgba(76,175,80,0.3)' : 'rgba(255,167,38,0.3)', opacity: over ? 0.5 : 1, cursor: over ? 'not-allowed' : 'pointer' }}>
-            <span>{paused ? '▶' : '⏸'}</span><span style={{ fontSize: 9, opacity: 0.8 }}>{paused ? '계속' : '정지'}</span>
-          </button>
-          <button onClick={restart} style={{ ...btnStyle, background: 'rgba(233,69,96,0.3)' }}>
-            <span>🔄</span><span style={{ fontSize: 9, opacity: 0.8 }}>재시작</span>
-          </button>
+          <div ref={settingsRef} style={{ position: 'relative' }}>
+            <button
+              onClick={() => setShowSettings(prev => !prev)}
+              style={headerBtnStyle}
+            >
+              <Settings size={20} />
+            </button>
+            {/* 설정 드롭다운 */}
+            {showSettings && (
+              <div style={{
+                position: 'absolute', top: 48, right: 0, width: 180,
+                background: '#352B42', borderRadius: 12, padding: 8,
+                boxShadow: '0 8px 24px rgba(0,0,0,0.4)', zIndex: 50,
+              }}>
+                <button
+                  onClick={() => { togglePause(); setShowSettings(false) }}
+                  disabled={over}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '10px 12px', borderRadius: 8, color: '#F5F0FF',
+                    fontFamily: "'Noto Sans KR', sans-serif", fontSize: 14,
+                    cursor: over ? 'not-allowed' : 'pointer', border: 'none',
+                    background: 'transparent', width: '100%', opacity: over ? 0.5 : 1,
+                  }}
+                >
+                  {paused ? <Play size={18} color="#B8A9CC" /> : <Pause size={18} color="#B8A9CC" />}
+                  {paused ? '계속하기' : '일시정지'}
+                </button>
+                <button
+                  onClick={() => { restart(); setShowSettings(false) }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '10px 12px', borderRadius: 8, color: '#F5F0FF',
+                    fontFamily: "'Noto Sans KR', sans-serif", fontSize: 14,
+                    cursor: 'pointer', border: 'none', background: 'transparent', width: '100%',
+                  }}
+                >
+                  <RotateCcw size={18} color="#B8A9CC" />
+                  다시 시작
+                </button>
+                <button
+                  onClick={() => { setShowStats(true); setPaused(true); setShowSettings(false) }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '10px 12px', borderRadius: 8, color: '#F5F0FF',
+                    fontFamily: "'Noto Sans KR', sans-serif", fontSize: 14,
+                    cursor: 'pointer', border: 'none', background: 'transparent', width: '100%',
+                  }}
+                >
+                  <BarChart3 size={18} color="#B8A9CC" />
+                  게임 통계
+                </button>
+                <button
+                  onClick={() => { setShowLeaderboard(true); setPaused(true); setShowSettings(false) }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '10px 12px', borderRadius: 8, color: '#F5F0FF',
+                    fontFamily: "'Noto Sans KR', sans-serif", fontSize: 14,
+                    cursor: 'pointer', border: 'none', background: 'transparent', width: '100%',
+                  }}
+                >
+                  <Trophy size={18} color="#B8A9CC" />
+                  랭킹
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
+
       {/* 캔버스 + 오버레이 */}
       <div style={{ position: 'relative', width: '100%', maxWidth: 360 }}>
         <canvas
@@ -467,24 +626,26 @@ export default function MergeGame({ playerName }) {
             <button
               onClick={(e) => { e.stopPropagation(); setShowLeaderboard(true) }}
               style={{
-                background: 'rgba(156,39,176,0.9)', color: '#fff', border: 'none',
-                borderRadius: 12, padding: '12px 20px', fontSize: 14, fontWeight: 'bold',
+                background: '#2D8F4E', color: '#fff', border: 'none',
+                borderRadius: 12, padding: '12px 20px', fontSize: 14, fontWeight: 700,
                 cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
-                boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
+                boxShadow: '0 4px 12px rgba(45,143,78,0.3)',
+                fontFamily: "'Noto Sans KR', sans-serif",
               }}
             >
-              🏆 랭킹 등록
+              <Trophy size={16} /> 랭킹 등록
             </button>
             <button
               onClick={(e) => { e.stopPropagation(); shareScore() }}
               style={{
-                background: 'rgba(33,150,243,0.9)', color: '#fff', border: 'none',
-                borderRadius: 12, padding: '12px 20px', fontSize: 14, fontWeight: 'bold',
+                background: '#352B42', color: '#F5F0FF', border: '1px solid #4A3D5C',
+                borderRadius: 12, padding: '12px 20px', fontSize: 14, fontWeight: 700,
                 cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
-                boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
+                boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                fontFamily: "'Noto Sans KR', sans-serif",
               }}
             >
-              📤 점수 공유
+              <Share2 size={16} /> 점수 공유
             </button>
           </div>
         )}
@@ -494,27 +655,57 @@ export default function MergeGame({ playerName }) {
             onClick={dismissTutorial}
             style={{
               position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-              background: 'rgba(0,0,0,0.8)', borderRadius: 12,
-              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-              zIndex: 20, cursor: 'pointer',
+              background: 'rgba(26, 21, 32, 0.92)', borderRadius: 12,
+              display: 'flex', flexDirection: 'column',
+              alignItems: 'center', justifyContent: 'center',
+              zIndex: 20, cursor: 'pointer', padding: '0 28px',
             }}
           >
-            <div style={{ color: '#fff', fontSize: 22, fontWeight: 'bold', marginBottom: 24 }}>
-              🐾 플레이 방법
+            <div style={{
+              fontFamily: "'Black Han Sans', sans-serif",
+              color: '#F5F0FF', fontSize: 24, marginBottom: 28
+            }}>
+              플레이 방법
             </div>
-            <div style={{ color: 'rgba(255,255,255,0.9)', fontSize: 16, textAlign: 'center', lineHeight: 2.2, padding: '0 24px' }}>
-              👆 터치/클릭으로 동물을 떨어뜨리세요<br />
-              🔄 같은 동물끼리 합치면 진화!<br />
-              ⚠️ 동물이 위험선을 넘으면 게임오버<br />
-              🦕 최종 목표: 공룡 만들기!
-            </div>
-            <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, marginTop: 32 }}>
+            {[
+              { num: '1', text: '터치/클릭으로 동물을 떨어뜨리세요' },
+              { num: '2', text: '같은 동물끼리 합치면 진화!' },
+              { num: '3', text: '위험선을 넘으면 게임 오버' },
+              { num: '4', text: '점수가 오르면 난이도가 올라갑니다!' },
+              { num: '!', text: '최종 목표: 공룡 만들기!', accent: true },
+            ].map(step => (
+              <div key={step.num} style={{
+                display: 'flex', alignItems: 'center', gap: 14,
+                marginBottom: 16, width: '100%',
+              }}>
+                <div style={{
+                  width: 32, height: 32, borderRadius: 8,
+                  background: step.accent ? '#2D8F4E' : '#352B42',
+                  color: step.accent ? '#fff' : '#B8A9CC',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontFamily: "'Black Han Sans', sans-serif",
+                  fontSize: 16, flexShrink: 0,
+                }}>
+                  {step.num}
+                </div>
+                <span style={{
+                  color: '#F5F0FF', fontSize: 15, lineHeight: 1.5,
+                  fontFamily: "'Noto Sans KR', sans-serif",
+                }}>
+                  {step.text}
+                </span>
+              </div>
+            ))}
+            <div style={{
+              color: '#7A6B8A', fontSize: 13, marginTop: 24,
+              fontFamily: "'Noto Sans KR', sans-serif",
+            }}>
               터치하여 시작
             </div>
           </div>
         )}
       </div>
-      <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12, marginTop: 6 }}>
+      <div style={{ color: '#7A6B8A', fontSize: 12, marginTop: 6 }}>
         같은 동물을 합쳐서 더 큰 동물로 진화시키세요!
       </div>
 
