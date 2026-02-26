@@ -2,6 +2,23 @@ import { ANIMALS } from './animals'
 import { drawAnimal } from './drawAnimal'
 import { CANVAS_W as W, CANVAS_H as H, WALL, FLOOR_Y, LEFT, RIGHT, DROP_Y, DANGER_Y } from './physics'
 
+// 착지 예측 (수직 레이캐스트)
+function predictLandingY(dropX, dropR, balls) {
+  let landingY = FLOOR_Y - dropR
+  for (const b of balls) {
+    const dx = dropX - b.x
+    const combined = dropR + b.r
+    if (Math.abs(dx) < combined) {
+      const dy = Math.sqrt(combined * combined - dx * dx)
+      const possibleY = b.y - dy
+      if (possibleY > DROP_Y && possibleY < landingY) {
+        landingY = possibleY
+      }
+    }
+  }
+  return landingY
+}
+
 // 게임 화면 전체 렌더링
 export function render(ctx, state, highScore = 0, paused = false) {
   ctx.save()
@@ -39,16 +56,14 @@ export function render(ctx, state, highScore = 0, paused = false) {
 
   // 위험 카운트다운 표시
   if (state.dangerT > 0) {
-    const timeLeft = ((120 - state.dangerT) / 60).toFixed(1)  // 120프레임 = 2초
-    const progress = state.dangerT / 120
+    const timeLeft = ((60 - state.dangerT) / 60).toFixed(1)
+    const progress = state.dangerT / 60
 
-    // 경고 텍스트
     ctx.fillStyle = '#ff3c3c'
     ctx.font = 'bold 16px sans-serif'
     ctx.textAlign = 'left'
     ctx.fillText(`⚠️ ${timeLeft}초`, LEFT + 5, DANGER_Y - 10)
 
-    // 진행 바
     const barWidth = RIGHT - LEFT
     ctx.fillStyle = 'rgba(255,60,60,0.3)'
     ctx.fillRect(LEFT, DANGER_Y - 25, barWidth, 4)
@@ -56,41 +71,26 @@ export function render(ctx, state, highScore = 0, paused = false) {
     ctx.fillRect(LEFT, DANGER_Y - 25, barWidth * progress, 4)
   }
 
-  // 드롭 가이드
+  // 드롭 가이드 + 고스트 프리뷰
   if (state.canDrop && !state.over) {
+    const curR = ANIMALS[state.cur].r
+
+    // 착지 예측 고스트
+    const landY = predictLandingY(state.dropX, curR, state.balls)
+    ctx.globalAlpha = 0.15
+    drawAnimal(ctx, state.dropX, landY, curR, state.cur)
+    ctx.globalAlpha = 1
+
+    // 드롭 가이드 라인
     ctx.strokeStyle = 'rgba(255,255,255,0.08)'
     ctx.setLineDash([3, 6])
     ctx.beginPath(); ctx.moveTo(state.dropX, DROP_Y); ctx.lineTo(state.dropX, FLOOR_Y); ctx.stroke()
     ctx.setLineDash([])
+
+    // 현재 드롭할 동물
     ctx.globalAlpha = 0.7
     drawAnimal(ctx, state.dropX, DROP_Y / 2 + 12, ANIMALS[state.cur].r, state.cur)
     ctx.globalAlpha = 1
-
-    // 자동 드롭 타이머 표시
-    if (state.dropTimer !== undefined && state.dropTimerMax > 0) {
-      const progress = state.dropTimer / state.dropTimerMax
-      const timerColor = progress > 0.5 ? '#4CAF50' : progress > 0.25 ? '#FF9800' : '#F44336'
-      const barWidth = 60
-      const barX = state.dropX - barWidth / 2
-      const barY = 8
-
-      // 타이머 배경
-      ctx.fillStyle = 'rgba(255,255,255,0.15)'
-      ctx.fillRect(barX, barY, barWidth, 5)
-      // 타이머 진행
-      ctx.fillStyle = timerColor
-      ctx.fillRect(barX, barY, barWidth * progress, 5)
-
-      // 남은 시간이 적으면 테두리 깜빡이기
-      if (progress < 0.25) {
-        const blink = Math.sin(Date.now() * 0.015) > 0
-        if (blink) {
-          ctx.strokeStyle = 'rgba(255,60,60,0.6)'
-          ctx.lineWidth = 4
-          ctx.strokeRect(2, 2, W - 4, H - 4)
-        }
-      }
-    }
   }
 
   // 동물들
@@ -124,14 +124,13 @@ export function render(ctx, state, highScore = 0, paused = false) {
   // 점수 증가 팝업
   for (const p of state.scorePopups || []) {
     const alpha = 1 - (p.t / 40)
-    // 콤보별 색상 변화
     let color
     if (p.combo >= 10) {
-      color = `rgba(0,255,255,${alpha})` // 시안 (10콤보+)
+      color = `rgba(0,255,255,${alpha})`
     } else if (p.combo >= 5) {
-      color = `rgba(255,105,180,${alpha})` // 핑크 (5-9콤보)
+      color = `rgba(255,105,180,${alpha})`
     } else {
-      color = `rgba(255,215,0,${alpha})` // 황금 (1-4콤보)
+      color = `rgba(255,215,0,${alpha})`
     }
     ctx.fillStyle = color
     ctx.font = 'bold 16px sans-serif'
@@ -143,14 +142,13 @@ export function render(ctx, state, highScore = 0, paused = false) {
   // 콤보 표시
   if (state.combo > 1 && state.comboTimer > 0) {
     const comboAlpha = Math.min(state.comboTimer / 60, 1)
-    // 콤보별 색상 변화
     let comboColor
     if (state.combo >= 10) {
-      comboColor = `rgba(0,255,255,${comboAlpha})` // 시안 (10콤보+)
+      comboColor = `rgba(0,255,255,${comboAlpha})`
     } else if (state.combo >= 5) {
-      comboColor = `rgba(255,105,180,${comboAlpha})` // 핑크 (5-9콤보)
+      comboColor = `rgba(255,105,180,${comboAlpha})`
     } else {
-      comboColor = `rgba(255,215,0,${comboAlpha})` // 황금 (1-4콤보)
+      comboColor = `rgba(255,215,0,${comboAlpha})`
     }
     ctx.fillStyle = comboColor
     ctx.font = 'bold 24px sans-serif'
@@ -178,39 +176,86 @@ export function render(ctx, state, highScore = 0, paused = false) {
   ctx.textAlign = 'left'
   ctx.fillText(`🔥 LV.${level}`, 12, 56)
 
-  // 진행도 바
-  const barX = 70
-  const barY = 58
-  const barW = 100
-  const barH = 6
+  const barX = 70, barY = 58, barW = 100, barH = 6
   ctx.fillStyle = 'rgba(255,255,255,0.2)'
   ctx.fillRect(barX, barY, barW, barH)
   ctx.fillStyle = levelColors[level - 1]
   ctx.fillRect(barX, barY, barW * levelProgress, barH)
 
-  // 다음 동물 (크기 확대 및 배경 추가)
+  // NEXT 2 표시 (다음 2마리)
   const nextX = W - 40
-  const nextY = 30
   ctx.fillStyle = 'rgba(0,0,0,0.3)'
-  // 둥근 사각형 직접 그리기 (roundRect 호환성 문제 해결)
-  const x = nextX - 35, y = 5, w = 70, h = 50, r = 8
+  // 둥근 사각형 (높이 확장)
+  const bx = nextX - 35, by = 5, bw = 70, bh = 72, br = 8
   ctx.beginPath()
-  ctx.moveTo(x + r, y)
-  ctx.lineTo(x + w - r, y)
-  ctx.quadraticCurveTo(x + w, y, x + w, y + r)
-  ctx.lineTo(x + w, y + h - r)
-  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h)
-  ctx.lineTo(x + r, y + h)
-  ctx.quadraticCurveTo(x, y + h, x, y + h - r)
-  ctx.lineTo(x, y + r)
-  ctx.quadraticCurveTo(x, y, x + r, y)
+  ctx.moveTo(bx + br, by)
+  ctx.lineTo(bx + bw - br, by)
+  ctx.quadraticCurveTo(bx + bw, by, bx + bw, by + br)
+  ctx.lineTo(bx + bw, by + bh - br)
+  ctx.quadraticCurveTo(bx + bw, by + bh, bx + bw - br, by + bh)
+  ctx.lineTo(bx + br, by + bh)
+  ctx.quadraticCurveTo(bx, by + bh, bx, by + bh - br)
+  ctx.lineTo(bx, by + br)
+  ctx.quadraticCurveTo(bx, by, bx + br, by)
   ctx.closePath()
   ctx.fill()
 
-  ctx.font = '12px sans-serif'; ctx.textAlign = 'center'
+  ctx.font = '11px sans-serif'; ctx.textAlign = 'center'
   ctx.fillStyle = 'rgba(255,255,255,0.7)'
-  ctx.fillText('NEXT', nextX, 15)
-  drawAnimal(ctx, nextX, nextY, ANIMALS[state.nxt].r * 0.55, state.nxt)
+  ctx.fillText('NEXT', nextX, 16)
+  drawAnimal(ctx, nextX, 32, ANIMALS[state.nxt].r * 0.5, state.nxt)
+  // 두 번째 NEXT
+  if (state.nxt2 !== undefined) {
+    ctx.globalAlpha = 0.5
+    drawAnimal(ctx, nextX, 58, ANIMALS[state.nxt2].r * 0.35, state.nxt2)
+    ctx.globalAlpha = 1
+  }
+
+  // 진화 순서 사이드바 (오른쪽)
+  const evoX = RIGHT - 14
+  const evoStartY = 90
+  const evoCount = ANIMALS.length
+  const evoSpacing = Math.min(48, (FLOOR_Y - evoStartY - 10) / (evoCount - 1))
+  const maxTypeOnBoard = state.balls.length > 0
+    ? state.balls.reduce((max, b) => Math.max(max, b.type), 0)
+    : -1
+
+  // 사이드바 배경
+  ctx.fillStyle = 'rgba(0,0,0,0.2)'
+  const evoBoxX = evoX - 14, evoBoxW = 28
+  const evoBoxY = evoStartY - 16, evoBoxH = evoSpacing * (evoCount - 1) + 32
+  const ebr = 8
+  ctx.beginPath()
+  ctx.moveTo(evoBoxX + ebr, evoBoxY)
+  ctx.lineTo(evoBoxX + evoBoxW - ebr, evoBoxY)
+  ctx.quadraticCurveTo(evoBoxX + evoBoxW, evoBoxY, evoBoxX + evoBoxW, evoBoxY + ebr)
+  ctx.lineTo(evoBoxX + evoBoxW, evoBoxY + evoBoxH - ebr)
+  ctx.quadraticCurveTo(evoBoxX + evoBoxW, evoBoxY + evoBoxH, evoBoxX + evoBoxW - ebr, evoBoxY + evoBoxH)
+  ctx.lineTo(evoBoxX + ebr, evoBoxY + evoBoxH)
+  ctx.quadraticCurveTo(evoBoxX, evoBoxY + evoBoxH, evoBoxX, evoBoxY + evoBoxH - ebr)
+  ctx.lineTo(evoBoxX, evoBoxY + ebr)
+  ctx.quadraticCurveTo(evoBoxX, evoBoxY, evoBoxX + ebr, evoBoxY)
+  ctx.closePath()
+  ctx.fill()
+
+  for (let i = 0; i < evoCount; i++) {
+    const ey = evoStartY + i * evoSpacing
+    const isHighest = i === maxTypeOnBoard
+    const isReached = i <= maxTypeOnBoard
+
+    // 하이라이트 링
+    if (isHighest) {
+      ctx.strokeStyle = 'rgba(255,215,0,0.6)'
+      ctx.lineWidth = 2
+      ctx.beginPath()
+      ctx.arc(evoX, ey, 12, 0, Math.PI * 2)
+      ctx.stroke()
+    }
+
+    ctx.globalAlpha = isHighest ? 0.9 : isReached ? 0.45 : 0.15
+    drawAnimal(ctx, evoX, ey, 8, i)
+    ctx.globalAlpha = 1
+  }
 
   // 일시정지
   if (paused && !state.over) {
@@ -222,16 +267,50 @@ export function render(ctx, state, highScore = 0, paused = false) {
     ctx.fillText('일시정지', W / 2, H / 2 + 25)
   }
 
-  // 게임오버
+  // 게임오버 (강화)
   if (state.over) {
     ctx.fillStyle = 'rgba(0,0,0,0.8)'; ctx.fillRect(0, 0, W, H)
+
+    // GAME OVER 타이틀
     ctx.fillStyle = '#fff'; ctx.font = 'bold 34px sans-serif'
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
-    ctx.fillText('GAME OVER', W / 2, H / 2 - 40)
+    ctx.fillText('GAME OVER', W / 2, H / 2 - 90)
+
+    // 최종 점수
     ctx.font = '22px sans-serif'
-    ctx.fillText(`최종 점수: ${state.score}`, W / 2, H / 2 + 5)
-    ctx.font = '15px sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.6)'
-    ctx.fillText('클릭하여 다시 시작', W / 2, H / 2 + 45)
+    ctx.fillText(`최종 점수: ${state.score}`, W / 2, H / 2 - 50)
+
+    // 최고 기록 달성
+    if (state.isNewHigh) {
+      ctx.fillStyle = '#FFD700'
+      ctx.font = 'bold 18px sans-serif'
+      ctx.fillText('🏆 최고 기록 달성!', W / 2, H / 2 - 18)
+    }
+
+    // 게임 통계
+    let statsY = state.isNewHigh ? H / 2 + 10 : H / 2 - 10
+    ctx.fillStyle = 'rgba(255,255,255,0.7)'
+    ctx.font = '15px sans-serif'
+
+    if (state.maxAnimal !== undefined && state.maxAnimal > 0) {
+      const animalName = ANIMALS[state.maxAnimal]?.name || '?'
+      ctx.fillText(`최고 동물: ${animalName} (${state.maxAnimal + 1}/${ANIMALS.length}단계)`, W / 2, statsY)
+      statsY += 25
+    }
+    if (state.maxCombo !== undefined && state.maxCombo > 1) {
+      ctx.fillText(`최고 콤보: ${state.maxCombo} COMBO`, W / 2, statsY)
+      statsY += 25
+    }
+
+    // 최고 도달 동물 그리기
+    if (state.maxAnimal !== undefined && state.maxAnimal > 0) {
+      drawAnimal(ctx, W / 2, statsY + 20, ANIMALS[state.maxAnimal].r * 0.4, state.maxAnimal)
+      statsY += 50
+    }
+
+    // 재시작 안내
+    ctx.font = '13px sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.4)'
+    ctx.fillText('빈 곳을 터치하면 다시 시작', W / 2, H / 2 + 130)
   }
 
   ctx.restore()

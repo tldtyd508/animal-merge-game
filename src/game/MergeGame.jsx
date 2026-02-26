@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ANIMALS, DROP_TYPES } from './animals'
 import { CANVAS_W as W, CANVAS_H as H, LEFT, RIGHT, DROP_Y, DANGER_Y, SUB_STEPS, nextId, updateBall, resolvePair } from './physics'
 import { render } from './renderer'
+import { playDrop, playMerge, playCombo, playGameOver, toggleMute, vibrate } from './sound'
 import GameStats from '../ui/GameStats'
 import Leaderboard from '../ui/Leaderboard'
 
@@ -12,18 +13,20 @@ export default function MergeGame({ playerName }) {
     score: 0,
     cur: Math.floor(Math.random() * DROP_TYPES),
     nxt: Math.floor(Math.random() * DROP_TYPES),
+    nxt2: Math.floor(Math.random() * DROP_TYPES),
     dropX: W / 2,
     canDrop: true,
     over: false,
     fx: [],
-    scorePopups: [], // 점수 증가 애니메이션
-    particles: [], // 파티클 효과
-    combo: 0, // 콤보 카운트
-    comboTimer: 0, // 콤보 타이머 (180프레임 = 3초)
+    scorePopups: [],
+    particles: [],
+    combo: 0,
+    comboTimer: 0,
     dangerT: 0,
-    shakeT: 0, // 화면 흔들림 타이머
-    dropTimer: 180, // 자동 드롭 카운트다운 (초기값 = dropTimerMax)
-    dropTimerMax: 180, // 최대 타이머 (3초, 점수에 따라 감소)
+    shakeT: 0,
+    maxAnimal: 0,
+    maxCombo: 0,
+    isNewHigh: false,
   })
   const [score, setScore] = useState(0)
   const [highScore, setHighScore] = useState(() => {
@@ -31,25 +34,30 @@ export default function MergeGame({ playerName }) {
       const saved = localStorage.getItem('animalGameHighScore')
       return saved ? parseInt(saved) : 0
     } catch (error) {
-      console.error('localStorage error:', error)
       return 0
     }
   })
   const [over, setOver] = useState(false)
   const [paused, setPaused] = useState(false)
+  const [muted, setMuted] = useState(false)
   const [showStats, setShowStats] = useState(false)
   const [showLeaderboard, setShowLeaderboard] = useState(false)
+  const [showTutorial, setShowTutorial] = useState(() => {
+    return !localStorage.getItem('animalGameTutorialSeen')
+  })
   const gameStartTime = useRef(Date.now())
   const maxAnimalReached = useRef(0)
   const maxComboReached = useRef(0)
-  const cooldownTimerRef = useRef(null) // 쿨다운 타이머 누수 방지
+  const cooldownTimerRef = useRef(null)
+  const highScoreRef = useRef(highScore)
 
   // 캔버스 좌표 변환
   const pos = (e) => {
     const c = cvs.current
     const rect = c.getBoundingClientRect()
     const sx = W / rect.width
-    const cx = e.touches ? e.touches[0].clientX : e.clientX
+    const touch = e.touches?.[0] || e.changedTouches?.[0]
+    const cx = touch ? touch.clientX : e.clientX
     return { x: (cx - rect.left) * sx }
   }
 
@@ -59,11 +67,9 @@ export default function MergeGame({ playerName }) {
       const s = g.current
 
       if (!s.over && !paused) {
-        // 물리 서브스텝 (정확도 향상용)
+        // 물리 서브스텝
         for (let sub = 0; sub < SUB_STEPS; sub++) {
           for (const b of s.balls) updateBall(b)
-
-          // 충돌 해소 (합체는 아직 안 함)
           for (let i = 0; i < s.balls.length; i++) {
             for (let j = i + 1; j < s.balls.length; j++) {
               resolvePair(s.balls[i], s.balls[j])
@@ -71,22 +77,21 @@ export default function MergeGame({ playerName }) {
           }
         }
 
-        // 글로벌 속도 댐핑 (미세 떨림만 제거)
+        // 글로벌 속도 댐핑
         for (const b of s.balls) {
-          if (Math.abs(b.vx) < 0.1) b.vx = 0
-          if (Math.abs(b.vy) < 0.2) b.vy = 0
+          if (Math.abs(b.vx) < 0.15) b.vx = 0
+          if (Math.abs(b.vy) < 0.3) b.vy = 0
         }
 
-        // 합체 처리 (서브스텝 밖에서 한 번만)
+        // 합체 감지
         const merges = []
         for (let i = 0; i < s.balls.length; i++) {
           for (let j = i + 1; j < s.balls.length; j++) {
             const a = s.balls[i], b2 = s.balls[j]
-            // 같은 타입이고 충돌 중이면 합체
             const dx = b2.x - a.x
             const dy = b2.y - a.y
             const d = Math.sqrt(dx * dx + dy * dy)
-            if (d < (a.r + b2.r) * 0.84 && a.type === b2.type && a.type < ANIMALS.length - 1 && !a.del && !b2.del) {
+            if (d < (a.r + b2.r) * 0.95 && a.type === b2.type && a.type < ANIMALS.length - 1 && !a.del && !b2.del) {
               merges.push([i, j])
               a.del = true
               b2.del = true
@@ -96,10 +101,8 @@ export default function MergeGame({ playerName }) {
 
         // 합체 실행
         if (merges.length > 0) {
-          // 콤보 증가
           s.combo += merges.length
-          s.comboTimer = 180 // 3초 (60fps 기준)
-          // 통계: 최고 콤보 기록
+          s.comboTimer = 180
           if (s.combo > maxComboReached.current) {
             maxComboReached.current = s.combo
           }
@@ -112,14 +115,12 @@ export default function MergeGame({ playerName }) {
             s.balls.push({
               id: nextId(), type: nt,
               x: mergeX, y: mergeY,
-              vx: 0, vy: -2, r: ANIMALS[nt].r,
-              born: Date.now(), // 합체 시 타임스탬프 리셋 (조기 게임오버 방지)
+              vx: 0, vy: -1, r: ANIMALS[nt].r,
+              born: Date.now(),
             })
-            // 통계: 최고 동물 기록
             if (nt > maxAnimalReached.current) {
               maxAnimalReached.current = nt
             }
-            // 콤보 보너스 계산 (1x, 1.2x, 1.4x, ... 최대 3x)
             const comboMultiplier = Math.min(1 + (s.combo - 1) * 0.2, 3)
             const basePts = ANIMALS[nt].pts
             const pts = Math.floor(basePts * comboMultiplier)
@@ -128,11 +129,9 @@ export default function MergeGame({ playerName }) {
               x: mergeX, y: mergeY,
               r: ANIMALS[nt].r, t: 0, name: ANIMALS[nt].name,
             })
-            // 점수 팝업 추가
             s.scorePopups.push({
               x: mergeX, y: mergeY - 10, t: 0, pts, combo: s.combo
             })
-            // 파티클 생성 (12~20개)
             const particleCount = 12 + Math.floor(Math.random() * 9)
             for (let p = 0; p < particleCount; p++) {
               const angle = (Math.PI * 2 * p) / particleCount + (Math.random() - 0.5) * 0.5
@@ -146,94 +145,72 @@ export default function MergeGame({ playerName }) {
                 size: 3 + Math.random() * 3
               })
             }
+            // 합체 사운드 + 진동 피드백
+            playMerge(nt)
+            vibrate(30)
           }
           s.balls = s.balls.filter(b => !b.del)
-          // 화면 흔들림 (콤보가 높을수록 강하게)
           s.shakeT = Math.min(8 + s.combo * 3, 25)
+          // 콤보 사운드
+          if (s.combo > 1) playCombo(s.combo)
         }
 
         // 이펙트 업데이트
         s.fx = s.fx.filter(f => { f.t++; return f.t < 30 })
         s.scorePopups = s.scorePopups.filter(p => { p.t++; p.y -= 1.5; return p.t < 40 })
-
-        // 파티클 업데이트
         s.particles = s.particles.filter(p => {
           p.t++
-          p.vy += 0.2 // 중력
-          p.vx *= 0.98 // 마찰
+          p.vy += 0.2
+          p.vx *= 0.98
           p.x += p.vx
           p.y += p.vy
           return p.t < p.life
         })
 
-        // 콤보 타이머 감소
+        // 콤보 타이머
         if (s.comboTimer > 0) {
           s.comboTimer--
-          if (s.comboTimer === 0) {
-            s.combo = 0 // 콤보 리셋
-          }
+          if (s.comboTimer === 0) s.combo = 0
         }
 
-        // 자동 드롭 타이머 (canDrop일 때만 카운트)
-        if (s.canDrop && !s.over) {
-          s.dropTimer--
-          if (s.dropTimer <= 0) {
-            // 시간 초과 → 자동 드롭!
-            const r = ANIMALS[s.cur].r
-            const dx = Math.max(LEFT + r, Math.min(RIGHT - r, s.dropX))
-            s.balls.push({
-              id: nextId(), type: s.cur,
-              x: dx, y: DROP_Y, vx: 0, vy: 0,
-              r, born: Date.now(),
-            })
-            s.cur = s.nxt
-            s.nxt = Math.floor(Math.random() * DROP_TYPES)
-            s.canDrop = false
-
-            // 난이도에 따른 쿨다운
-            const cooldown = Math.max(150, 400 - s.score * 0.1)
-            cooldownTimerRef.current = setTimeout(() => {
-              s.canDrop = true
-              // 타이머 리셋 (점수 높을수록 짧아짐)
-              s.dropTimerMax = Math.max(90, 180 - Math.floor(s.score / 100) * 10) // 3초 → 최소 1.5초
-              s.dropTimer = s.dropTimerMax
-            }, cooldown)
-          }
-        }
-
-        // 위험 판정 (1초 대기 + 120프레임, 총 3초로 완화)
+        // 위험 판정
         const now = Date.now()
         const danger = s.balls.some(b => b.y - b.r < DANGER_Y && now - b.born > 1000)
         if (danger) {
           s.dangerT++
-          if (s.dangerT > 120) {  // 60 → 120 (2초로 증가)
+          if (s.dangerT > 60) {
             s.over = true
             s.overTime = Date.now()
+            s.isNewHigh = s.score > highScoreRef.current
+            s.maxAnimal = maxAnimalReached.current
+            s.maxCombo = maxComboReached.current
             setOver(true)
-            // 최고 점수 갱신
+            playGameOver()
+            vibrate(200)
             setHighScore(prev => {
               const newHigh = Math.max(prev, s.score)
               if (newHigh > prev) {
+                highScoreRef.current = newHigh
                 try {
                   localStorage.setItem('animalGameHighScore', newHigh.toString())
-                } catch (error) {
-                  console.error('localStorage save error:', error)
-                }
+                } catch (error) { /* ignore */ }
               }
               return newHigh
             })
-            // 통계 저장
             saveGameStats(s.score)
           }
         }
-        else s.dangerT = 0
+        else if (s.dangerT > 0) s.dangerT = Math.max(0, s.dangerT - 2)
 
         setScore(s.score)
       }
 
-      // 렌더링
+      // 렌더링 전 최신 상태 반영
+      s.maxAnimal = maxAnimalReached.current
+      s.maxCombo = maxComboReached.current
+
       const c = cvs.current
-      if (c) render(c.getContext('2d'), s, highScore, paused)
+      if (c) render(c.getContext('2d'), s, highScoreRef.current, paused)
 
       raf = requestAnimationFrame(step)
     }
@@ -246,7 +223,7 @@ export default function MergeGame({ playerName }) {
         cooldownTimerRef.current = null
       }
     }
-  }, [paused, highScore])
+  }, [paused])
 
   // 게임 통계 저장
   const saveGameStats = (finalScore) => {
@@ -254,34 +231,29 @@ export default function MergeGame({ playerName }) {
       const playTime = Math.floor((Date.now() - gameStartTime.current) / 1000)
       const savedStats = localStorage.getItem('animalGameStats')
       const stats = savedStats ? JSON.parse(savedStats) : {
-        totalGames: 0,
-        totalPlayTime: 0,
-        highestAnimal: 0,
-        totalScore: 0,
-        maxCombo: 0
+        totalGames: 0, totalPlayTime: 0, highestAnimal: 0, totalScore: 0, maxCombo: 0
       }
-
       stats.totalGames++
       stats.totalPlayTime += playTime
       stats.totalScore += finalScore
-      if (maxAnimalReached.current > stats.highestAnimal) {
-        stats.highestAnimal = maxAnimalReached.current
-      }
-      if (maxComboReached.current > stats.maxCombo) {
-        stats.maxCombo = maxComboReached.current
-      }
-
+      if (maxAnimalReached.current > stats.highestAnimal) stats.highestAnimal = maxAnimalReached.current
+      if (maxComboReached.current > stats.maxCombo) stats.maxCombo = maxComboReached.current
       localStorage.setItem('animalGameStats', JSON.stringify(stats))
-    } catch (error) {
-      console.error('localStorage stats save error:', error)
-    }
+    } catch (error) { /* ignore */ }
   }
 
   const togglePause = () => {
-    const s = g.current
-    if (!s.over) {
-      setPaused(prev => !prev)
-    }
+    if (!g.current.over) setPaused(prev => !prev)
+  }
+
+  const handleToggleMute = () => {
+    const newMuted = toggleMute()
+    setMuted(newMuted)
+  }
+
+  const dismissTutorial = () => {
+    setShowTutorial(false)
+    localStorage.setItem('animalGameTutorialSeen', '1')
   }
 
   const onMove = (e) => {
@@ -298,8 +270,7 @@ export default function MergeGame({ playerName }) {
     const s = g.current
 
     if (s.over) {
-      // 게임오버 후 1초 딜레이 (실수 방지)
-      if (s.overTime && Date.now() - s.overTime < 1000) return
+      if (s.overTime && Date.now() - s.overTime < 2000) return
       restart()
       return
     }
@@ -314,80 +285,164 @@ export default function MergeGame({ playerName }) {
       x: dx, y: DROP_Y, vx: 0, vy: 0,
       r, born: Date.now(),
     })
+    playDrop()
     s.cur = s.nxt
-    s.nxt = Math.floor(Math.random() * DROP_TYPES)
+    s.nxt = s.nxt2
+    s.nxt2 = Math.floor(Math.random() * DROP_TYPES)
     s.canDrop = false
-
-    // 난이도에 따른 쿨다운 (점수가 높을수록 빠름)
-    const baseCooldown = 400
-    const reductionPerScore = 0.1
-    const minCooldown = 150
-    const cooldown = Math.max(minCooldown, baseCooldown - s.score * reductionPerScore)
 
     cooldownTimerRef.current = setTimeout(() => {
       s.canDrop = true
-      // 자동 드롭 타이머 리셋 (점수 높을수록 짧아짐)
-      s.dropTimerMax = Math.max(90, 180 - Math.floor(s.score / 100) * 10)
-      s.dropTimer = s.dropTimerMax
-    }, cooldown)
+    }, 500)
   }
 
   const restart = () => {
     const s = g.current
-    // 쿨다운 타이머 정리 (누수 방지)
     if (cooldownTimerRef.current) {
       clearTimeout(cooldownTimerRef.current)
       cooldownTimerRef.current = null
     }
-    s.balls = []; s.score = 0; s.fx = []; s.scorePopups = []; s.particles = []; s.combo = 0; s.comboTimer = 0; s.dangerT = 0; s.shakeT = 0
-    s.dropTimer = 180; s.dropTimerMax = 180
+    s.balls = []; s.score = 0; s.fx = []; s.scorePopups = []; s.particles = []
+    s.combo = 0; s.comboTimer = 0; s.dangerT = 0; s.shakeT = 0
     s.cur = Math.floor(Math.random() * DROP_TYPES)
     s.nxt = Math.floor(Math.random() * DROP_TYPES)
-    s.canDrop = true; s.over = false
+    s.nxt2 = Math.floor(Math.random() * DROP_TYPES)
+    s.dropX = W / 2
+    s.canDrop = true; s.over = false; s.isNewHigh = false; s.maxAnimal = 0; s.maxCombo = 0
     setScore(0); setOver(false); setPaused(false)
     gameStartTime.current = Date.now()
     maxAnimalReached.current = 0
     maxComboReached.current = 0
   }
 
+  // 점수 공유
+  const shareScore = async () => {
+    const canvas = cvs.current
+    if (!canvas) return
+    try {
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'))
+      if (navigator.share && blob) {
+        const file = new File([blob], 'animal-game.png', { type: 'image/png' })
+        await navigator.share({
+          title: '동물 합치기',
+          text: `동물 합치기에서 ${score}점을 달성했어요!`,
+          files: [file]
+        })
+      } else if (blob) {
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `animal-game-${score}.png`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+      }
+    } catch (e) {
+      console.log('Share cancelled')
+    }
+  }
+
+  const btnStyle = {
+    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+    background: 'rgba(255,255,255,0.1)', color: '#fff', border: 'none',
+    borderRadius: 10, padding: '6px 10px', cursor: 'pointer',
+    fontSize: 16, minWidth: 44, minHeight: 44,
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', background: '#0a0a1a', minHeight: '100vh', padding: '8px 4px', fontFamily: 'sans-serif' }}>
+      {/* 헤더 */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', maxWidth: 360, marginBottom: 6 }}>
         <span style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>🐾 동물 합치기</span>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={() => { setShowLeaderboard(true); setPaused(true) }} style={{ background: '#9C27B0', color: '#fff', border: 'none', borderRadius: 12, padding: '10px 16px', cursor: 'pointer', fontSize: 18, fontWeight: 'bold', minWidth: 48, minHeight: 44 }}>
-            🏆
+        <div style={{ display: 'flex', gap: 5 }}>
+          <button onClick={() => { setShowLeaderboard(true); setPaused(true) }} style={{ ...btnStyle, background: 'rgba(156,39,176,0.3)' }}>
+            <span>🏆</span><span style={{ fontSize: 9, opacity: 0.8 }}>랭킹</span>
           </button>
-          <button onClick={() => { setShowStats(true); setPaused(true) }} style={{ background: '#2196F3', color: '#fff', border: 'none', borderRadius: 12, padding: '10px 16px', cursor: 'pointer', fontSize: 18, fontWeight: 'bold', minWidth: 48, minHeight: 44 }}>
-            📊
+          <button onClick={() => { setShowStats(true); setPaused(true) }} style={{ ...btnStyle, background: 'rgba(33,150,243,0.3)' }}>
+            <span>📊</span><span style={{ fontSize: 9, opacity: 0.8 }}>통계</span>
           </button>
-          <button onClick={togglePause} disabled={over} style={{ background: paused ? '#4CAF50' : '#FFA726', color: '#fff', border: 'none', borderRadius: 12, padding: '10px 16px', cursor: over ? 'not-allowed' : 'pointer', fontSize: 18, fontWeight: 'bold', opacity: over ? 0.5 : 1, minWidth: 48, minHeight: 44 }}>
-            {paused ? '▶' : '⏸'}
+          <button onClick={handleToggleMute} style={{ ...btnStyle, background: muted ? 'rgba(244,67,54,0.3)' : 'rgba(76,175,80,0.3)' }}>
+            <span>{muted ? '🔇' : '🔊'}</span><span style={{ fontSize: 9, opacity: 0.8 }}>소리</span>
           </button>
-          <button onClick={restart} style={{ background: '#e94560', color: '#fff', border: 'none', borderRadius: 12, padding: '10px 16px', cursor: 'pointer', fontSize: 18, fontWeight: 'bold', minWidth: 48, minHeight: 44 }}>🔄</button>
+          <button onClick={togglePause} disabled={over} style={{ ...btnStyle, background: paused ? 'rgba(76,175,80,0.3)' : 'rgba(255,167,38,0.3)', opacity: over ? 0.5 : 1, cursor: over ? 'not-allowed' : 'pointer' }}>
+            <span>{paused ? '▶' : '⏸'}</span><span style={{ fontSize: 9, opacity: 0.8 }}>{paused ? '계속' : '정지'}</span>
+          </button>
+          <button onClick={restart} style={{ ...btnStyle, background: 'rgba(233,69,96,0.3)' }}>
+            <span>🔄</span><span style={{ fontSize: 9, opacity: 0.8 }}>재시작</span>
+          </button>
         </div>
       </div>
-      <div style={{ display: 'flex', gap: 4, marginBottom: 6, flexWrap: 'wrap', justifyContent: 'center', maxWidth: 360 }}>
-        {ANIMALS.map((a, i) => (
-          <span key={i} style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11 }}>
-            {a.name}{i < ANIMALS.length - 1 ? ' →' : ''}
-          </span>
-        ))}
+      {/* 캔버스 + 게임오버 오버레이 */}
+      <div style={{ position: 'relative', width: '100%', maxWidth: 360 }}>
+        <canvas
+          ref={cvs} width={W} height={H}
+          style={{ width: '100%', maxWidth: 360, borderRadius: 12, cursor: 'pointer', touchAction: 'none', display: 'block' }}
+          onMouseMove={onMove} onClick={onDrop}
+          onTouchStart={onMove} onTouchMove={onMove} onTouchEnd={onDrop}
+        />
+        {/* 게임오버 버튼 (공유 + 랭킹) */}
+        {over && (
+          <div style={{
+            position: 'absolute', bottom: '15%', left: '50%', transform: 'translateX(-50%)',
+            display: 'flex', gap: 10, zIndex: 10
+          }}>
+            <button
+              onClick={(e) => { e.stopPropagation(); setShowLeaderboard(true) }}
+              style={{
+                background: 'rgba(156,39,176,0.9)', color: '#fff', border: 'none',
+                borderRadius: 12, padding: '12px 20px', fontSize: 14, fontWeight: 'bold',
+                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+                boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
+              }}
+            >
+              🏆 랭킹 등록
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); shareScore() }}
+              style={{
+                background: 'rgba(33,150,243,0.9)', color: '#fff', border: 'none',
+                borderRadius: 12, padding: '12px 20px', fontSize: 14, fontWeight: 'bold',
+                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+                boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
+              }}
+            >
+              📤 점수 공유
+            </button>
+          </div>
+        )}
+        {/* 첫 플레이 튜토리얼 */}
+        {showTutorial && (
+          <div
+            onClick={dismissTutorial}
+            style={{
+              position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+              background: 'rgba(0,0,0,0.8)', borderRadius: 12,
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+              zIndex: 20, cursor: 'pointer',
+            }}
+          >
+            <div style={{ color: '#fff', fontSize: 22, fontWeight: 'bold', marginBottom: 24 }}>
+              🐾 플레이 방법
+            </div>
+            <div style={{ color: 'rgba(255,255,255,0.9)', fontSize: 16, textAlign: 'center', lineHeight: 2.2, padding: '0 24px' }}>
+              👆 터치/클릭으로 동물을 떨어뜨리세요<br />
+              🔄 같은 동물끼리 합치면 진화!<br />
+              ⚠️ 동물이 위험선을 넘으면 게임오버<br />
+              🦕 최종 목표: 공룡 만들기!
+            </div>
+            <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, marginTop: 32 }}>
+              터치하여 시작
+            </div>
+          </div>
+        )}
       </div>
-      <canvas
-        ref={cvs} width={W} height={H}
-        style={{ width: '100%', maxWidth: 360, borderRadius: 12, cursor: 'pointer', touchAction: 'none' }}
-        onMouseMove={onMove} onClick={onDrop}
-        onTouchMove={onMove} onTouchEnd={onDrop}
-      />
       <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12, marginTop: 6 }}>
         같은 동물을 합쳐서 더 큰 동물로 진화시키세요!
       </div>
 
-      {/* 게임 통계 모달 */}
+      {/* 모달 */}
       <GameStats isOpen={showStats} onClose={() => { setShowStats(false); setPaused(false) }} />
-
-      {/* 랭킹 모달 */}
       <Leaderboard
         isOpen={showLeaderboard}
         onClose={() => { setShowLeaderboard(false); setPaused(false) }}

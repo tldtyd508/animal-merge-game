@@ -1,33 +1,34 @@
-// 물리 상수
-export const GRAVITY = 0.50  // 낙하 속도
-export const BOUNCE = 0.45   // 탱탱한 반발 (역동적)
-export const FRICTION = 0.95 // 바닥 미끄러짐 (더 활발)
-export const AIR_RESISTANCE = 0.995 // 공중 저항
-export const SPACING_FACTOR = 0.82 // 동물 간 간격 (빽빽하게 밀착)
+// 물리 상수 (수박게임 참고 튜닝)
+export const GRAVITY = 0.55   // 프레임당 중력 (서브스텝 내에서 나눠서 적용)
+export const BOUNCE = 0.25    // 낮은 반발 (무거운 느낌)
+export const FRICTION = 0.85  // 강한 바닥 마찰
+export const AIR_RESISTANCE = 0.995 // 공중 저항 (vx, vy 모두 적용)
+export const SPACING_FACTOR = 0.90  // 충돌 거리 (< merge threshold 0.95 필수)
 export const SUB_STEPS = 5
 
-// 게임 영역 (난이도 증가: 폭 축소, 위험선 상승)
-export const CANVAS_W = 360  // 380 → 360 (좁아짐)
+// 서브스텝당 중력 (프레임당 중력을 서브스텝으로 나눔)
+const GRAVITY_PER_STEP = GRAVITY / SUB_STEPS
+
+// 게임 영역
+export const CANVAS_W = 360
 export const CANVAS_H = 640
 export const WALL = 6
 export const FLOOR_Y = CANVAS_H - WALL
 export const LEFT = WALL
 export const RIGHT = CANVAS_W - WALL
 export const DROP_Y = 80
-export const DANGER_Y = 140  // 110 → 140 (위험선 상승)
+export const DANGER_Y = 130
 
 let _uid = 0
 export function nextId() { return _uid++ }
 
 // 단일 공의 위치 업데이트 (서브스텝 1회분)
 export function updateBall(b) {
-  // 서브스텝은 정확도를 위한 것이므로 dt = 1
-  b.vy += GRAVITY
+  b.vy += GRAVITY_PER_STEP
+  b.vx *= AIR_RESISTANCE
+  b.vy *= AIR_RESISTANCE  // 수직 공중 저항도 적용
   b.x += b.vx
   b.y += b.vy
-
-  // 공중 마찰 (항상 적용되어 수평 속도 감쇠)
-  b.vx *= AIR_RESISTANCE
 
   // 벽 충돌
   if (b.x - b.r < LEFT) {
@@ -42,36 +43,32 @@ export function updateBall(b) {
   if (b.y + b.r > FLOOR_Y) {
     b.y = FLOOR_Y - b.r
     b.vy = -Math.abs(b.vy) * BOUNCE
-    b.vx *= FRICTION // 바닥 추가 마찰
-    if (Math.abs(b.vy) < 0.5) b.vy = 0
+    b.vx *= FRICTION
+    if (Math.abs(b.vy) < 0.3) b.vy = 0
     if (Math.abs(b.vx) < 0.1) b.vx = 0
   }
 }
 
-// 두 공 간 충돌 해소 (물리 처리만 담당)
+// 두 공 간 충돌 해소
 export function resolvePair(a, b) {
   const dx = b.x - a.x
   const dy = b.y - a.y
   const d = Math.sqrt(dx * dx + dy * dy) || 0.1
-  const minDist = (a.r + b.r) * SPACING_FACTOR // 간격 축소
+  const minDist = (a.r + b.r) * SPACING_FACTOR
 
   if (d >= minDist) return
 
-  // 충돌 해소
   const nx = dx / d
   const ny = dy / d
   const overlap = minDist - d
   const totalR = a.r + b.r
 
-  // 수직 충돌(위에서 떨어지는 경우) 시 수평 보정 최소화
-  const isVerticalCollision = Math.abs(ny) > 0.7
-  const horizontalFactor = isVerticalCollision ? 0.3 : 0.5
-  const verticalFactor = overlap < 0.5 ? 0.3 : 0.7 // 미세 떨림 방지, 큰 겹침은 빠르게 해소
-
-  a.x -= nx * overlap * (b.r / totalR) * horizontalFactor
-  a.y -= ny * overlap * (b.r / totalR) * verticalFactor
-  b.x += nx * overlap * (a.r / totalR) * horizontalFactor
-  b.y += ny * overlap * (a.r / totalR) * verticalFactor
+  // 위치 보정 (0.7로 빠르게 해소 → 스택 안정화)
+  const pushFactor = 0.7
+  a.x -= nx * overlap * (b.r / totalR) * pushFactor
+  a.y -= ny * overlap * (b.r / totalR) * pushFactor
+  b.x += nx * overlap * (a.r / totalR) * pushFactor
+  b.y += ny * overlap * (a.r / totalR) * pushFactor
 
   // 상대 속도에 따른 임펄스
   const dvn = (a.vx - b.vx) * nx + (a.vy - b.vy) * ny
@@ -81,8 +78,10 @@ export function resolvePair(a, b) {
     a.vy -= imp * ny * (b.r / totalR)
     b.vx += imp * nx * (a.r / totalR)
     b.vy += imp * ny * (a.r / totalR)
-    // 실제 충돌 시에만 마찰 적용
-    a.vx *= 0.94
-    b.vx *= 0.94
+    // 충돌 시 마찰 (양축 대칭 적용)
+    a.vx *= 0.92
+    a.vy *= 0.98
+    b.vx *= 0.92
+    b.vy *= 0.98
   }
 }
