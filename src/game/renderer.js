@@ -166,10 +166,13 @@ export function render(ctx, state, highScore = 0, paused = false) {
   ctx.fillStyle = 'rgba(255,215,0,0.8)'
   ctx.fillText(`최고 ${highScore}`, 12, 34)
 
-  // 레벨 시스템
-  const level = Math.min(Math.floor(state.score / 500) + 1, 6)
+  // 레벨 시스템 (난이도 기반)
+  const level = state.level || 1
   const levelColors = ['#4CAF50', '#FFEB3B', '#FF9800', '#F44336', '#9C27B0', '#00E5FF']
-  const levelProgress = (state.score % 500) / 500
+  const levelThresholds = [0, 300, 800, 1500, 3000, 5000]
+  const nextThreshold = level < 6 ? levelThresholds[level] : null
+  const prevThreshold = levelThresholds[level - 1]
+  const levelProgress = nextThreshold ? (state.score - prevThreshold) / (nextThreshold - prevThreshold) : 1
 
   ctx.fillStyle = levelColors[level - 1]
   ctx.font = 'bold 14px sans-serif'
@@ -180,7 +183,19 @@ export function render(ctx, state, highScore = 0, paused = false) {
   ctx.fillStyle = 'rgba(255,255,255,0.2)'
   ctx.fillRect(barX, barY, barW, barH)
   ctx.fillStyle = levelColors[level - 1]
-  ctx.fillRect(barX, barY, barW * levelProgress, barH)
+  ctx.fillRect(barX, barY, barW * Math.min(levelProgress, 1), barH)
+
+  // 자동 드롭 타이머 바
+  if (state.canDrop && state.autoDropMax > 0 && state.dropTimer > 0 && !state.over) {
+    const adProgress = state.dropTimer / state.autoDropMax
+    const adBarY = DROP_Y - 4
+    const adBarW = RIGHT - LEFT
+    ctx.fillStyle = 'rgba(255,255,255,0.1)'
+    ctx.fillRect(LEFT, adBarY, adBarW, 3)
+    const adColor = adProgress > 0.7 ? '#ff3c3c' : adProgress > 0.4 ? '#FF9800' : '#4CAF50'
+    ctx.fillStyle = adColor
+    ctx.fillRect(LEFT, adBarY, adBarW * adProgress, 3)
+  }
 
   // NEXT 2 표시 (다음 2마리)
   const nextX = W - 40
@@ -257,6 +272,23 @@ export function render(ctx, state, highScore = 0, paused = false) {
     ctx.globalAlpha = 1
   }
 
+  // 레벨업 이펙트
+  if (state.levelUpT > 0) {
+    const luAlpha = Math.min(state.levelUpT / 30, 1)
+    const luScale = 1 + (90 - state.levelUpT) * 0.003
+    ctx.save()
+    ctx.translate(W / 2, H / 2 - 50)
+    ctx.scale(luScale, luScale)
+    ctx.fillStyle = `rgba(255,215,0,${luAlpha})`
+    ctx.font = 'bold 30px sans-serif'
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+    ctx.fillText(`LEVEL ${state.level}!`, 0, 0)
+    ctx.font = '16px sans-serif'
+    ctx.fillStyle = `rgba(255,255,255,${luAlpha * 0.8})`
+    ctx.fillText('난이도 상승!', 0, 30)
+    ctx.restore()
+  }
+
   // 일시정지
   if (paused && !state.over) {
     ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(0, 0, W, H)
@@ -276,9 +308,15 @@ export function render(ctx, state, highScore = 0, paused = false) {
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
     ctx.fillText('GAME OVER', W / 2, H / 2 - 90)
 
+    // 도달 레벨
+    ctx.font = '16px sans-serif'
+    ctx.fillStyle = levelColors[(state.level || 1) - 1]
+    ctx.fillText(`LV.${state.level || 1} 도달`, W / 2, H / 2 - 58)
+
     // 최종 점수
+    ctx.fillStyle = '#fff'
     ctx.font = '22px sans-serif'
-    ctx.fillText(`최종 점수: ${state.score}`, W / 2, H / 2 - 50)
+    ctx.fillText(`최종 점수: ${state.score}`, W / 2, H / 2 - 35)
 
     // 최고 기록 달성
     if (state.isNewHigh) {

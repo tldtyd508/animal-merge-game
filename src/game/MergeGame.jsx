@@ -1,10 +1,37 @@
 import { useEffect, useRef, useState } from 'react'
 import { ANIMALS, DROP_TYPES } from './animals'
-import { CANVAS_W as W, CANVAS_H as H, LEFT, RIGHT, DROP_Y, DANGER_Y, SUB_STEPS, nextId, updateBall, resolvePair } from './physics'
+import { CANVAS_W as W, CANVAS_H as H, LEFT, RIGHT, DROP_Y, DANGER_Y, SUB_STEPS, nextId, updateBall, resolvePair, setGravityScale } from './physics'
 import { render } from './renderer'
 import { playDrop, playMerge, playCombo, playGameOver, toggleMute, vibrate } from './sound'
 import GameStats from '../ui/GameStats'
 import Leaderboard from '../ui/Leaderboard'
+
+// ── 난이도 시스템 ──
+const DIFFICULTIES = [
+  { minScore: 0,    level: 1, gravityScale: 1.0,  cooldown: 500, autoDropMs: 0,     dropWeights: [1,1,1,1,1] },
+  { minScore: 300,  level: 2, gravityScale: 1.1,  cooldown: 450, autoDropMs: 10000, dropWeights: [1,1,1,1,1] },
+  { minScore: 800,  level: 3, gravityScale: 1.25, cooldown: 400, autoDropMs: 7000,  dropWeights: [0.7,1,1,1.2,1.2] },
+  { minScore: 1500, level: 4, gravityScale: 1.4,  cooldown: 350, autoDropMs: 5000,  dropWeights: [0.5,0.8,1,1.3,1.5] },
+  { minScore: 3000, level: 5, gravityScale: 1.6,  cooldown: 300, autoDropMs: 3500,  dropWeights: [0.3,0.7,1,1.3,1.5] },
+  { minScore: 5000, level: 6, gravityScale: 1.8,  cooldown: 250, autoDropMs: 2500,  dropWeights: [0.2,0.5,1,1.5,1.8] },
+]
+
+function getDifficulty(score) {
+  for (let i = DIFFICULTIES.length - 1; i >= 0; i--) {
+    if (score >= DIFFICULTIES[i].minScore) return DIFFICULTIES[i]
+  }
+  return DIFFICULTIES[0]
+}
+
+function weightedRandom(weights) {
+  const total = weights.reduce((s, w) => s + w, 0)
+  let r = Math.random() * total
+  for (let i = 0; i < weights.length; i++) {
+    r -= weights[i]
+    if (r <= 0) return i
+  }
+  return weights.length - 1
+}
 
 export default function MergeGame({ playerName }) {
   const cvs = useRef(null)
@@ -27,6 +54,12 @@ export default function MergeGame({ playerName }) {
     maxAnimal: 0,
     maxCombo: 0,
     isNewHigh: false,
+    // 난이도 관련
+    level: 1,
+    prevLevel: 1,
+    levelUpT: 0,
+    dropTimer: 0,
+    autoDropMax: 0,
   })
   const [score, setScore] = useState(0)
   const [highScore, setHighScore] = useState(() => {
@@ -67,6 +100,43 @@ export default function MergeGame({ playerName }) {
       const s = g.current
 
       if (!s.over && !paused) {
+        // ── 난이도 적용 ──
+        const diff = getDifficulty(s.score)
+        setGravityScale(diff.gravityScale)
+        s.level = diff.level
+        s.autoDropMax = diff.autoDropMs
+
+        // 레벨업 감지
+        if (diff.level > s.prevLevel) {
+          s.levelUpT = 90
+          vibrate(100)
+        }
+        s.prevLevel = diff.level
+
+        // ── 자동 드롭 타이머 (테트리스식 압박) ──
+        if (s.canDrop && diff.autoDropMs > 0) {
+          s.dropTimer += 16.67
+          if (s.dropTimer >= diff.autoDropMs) {
+            const r = ANIMALS[s.cur].r
+            const cx = Math.max(LEFT + r, Math.min(RIGHT - r, s.dropX))
+            s.balls.push({
+              id: nextId(), type: s.cur,
+              x: cx, y: DROP_Y, vx: 0, vy: 0,
+              r, born: Date.now(),
+            })
+            playDrop()
+            s.cur = s.nxt
+            s.nxt = s.nxt2
+            s.nxt2 = weightedRandom(diff.dropWeights)
+            s.canDrop = false
+            s.dropTimer = 0
+            if (cooldownTimerRef.current) clearTimeout(cooldownTimerRef.current)
+            cooldownTimerRef.current = setTimeout(() => { s.canDrop = true }, diff.cooldown)
+          }
+        } else if (!s.canDrop) {
+          s.dropTimer = 0
+        }
+
         // 물리 서브스텝
         for (let sub = 0; sub < SUB_STEPS; sub++) {
           for (const b of s.balls) updateBall(b)
@@ -145,13 +215,11 @@ export default function MergeGame({ playerName }) {
                 size: 3 + Math.random() * 3
               })
             }
-            // 합체 사운드 + 진동 피드백
             playMerge(nt)
             vibrate(30)
           }
           s.balls = s.balls.filter(b => !b.del)
           s.shakeT = Math.min(8 + s.combo * 3, 25)
-          // 콤보 사운드
           if (s.combo > 1) playCombo(s.combo)
         }
 
@@ -173,6 +241,9 @@ export default function MergeGame({ playerName }) {
           if (s.comboTimer === 0) s.combo = 0
         }
 
+        // 레벨업 타이머
+        if (s.levelUpT > 0) s.levelUpT--
+
         // 위험 판정
         const now = Date.now()
         const danger = s.balls.some(b => b.y - b.r < DANGER_Y && now - b.born > 1000)
@@ -187,6 +258,7 @@ export default function MergeGame({ playerName }) {
             setOver(true)
             playGameOver()
             vibrate(200)
+            setGravityScale(1.0)
             setHighScore(prev => {
               const newHigh = Math.max(prev, s.score)
               if (newHigh > prev) {
@@ -279,6 +351,7 @@ export default function MergeGame({ playerName }) {
     const p = pos(e)
     const r = ANIMALS[s.cur].r
     const dx = Math.max(LEFT + r, Math.min(RIGHT - r, p.x))
+    const diff = getDifficulty(s.score)
 
     s.balls.push({
       id: nextId(), type: s.cur,
@@ -288,12 +361,14 @@ export default function MergeGame({ playerName }) {
     playDrop()
     s.cur = s.nxt
     s.nxt = s.nxt2
-    s.nxt2 = Math.floor(Math.random() * DROP_TYPES)
+    s.nxt2 = weightedRandom(diff.dropWeights)
     s.canDrop = false
+    s.dropTimer = 0
 
+    if (cooldownTimerRef.current) clearTimeout(cooldownTimerRef.current)
     cooldownTimerRef.current = setTimeout(() => {
       s.canDrop = true
-    }, 500)
+    }, diff.cooldown)
   }
 
   const restart = () => {
@@ -302,6 +377,7 @@ export default function MergeGame({ playerName }) {
       clearTimeout(cooldownTimerRef.current)
       cooldownTimerRef.current = null
     }
+    setGravityScale(1.0)
     s.balls = []; s.score = 0; s.fx = []; s.scorePopups = []; s.particles = []
     s.combo = 0; s.comboTimer = 0; s.dangerT = 0; s.shakeT = 0
     s.cur = Math.floor(Math.random() * DROP_TYPES)
@@ -309,6 +385,7 @@ export default function MergeGame({ playerName }) {
     s.nxt2 = Math.floor(Math.random() * DROP_TYPES)
     s.dropX = W / 2
     s.canDrop = true; s.over = false; s.isNewHigh = false; s.maxAnimal = 0; s.maxCombo = 0
+    s.level = 1; s.prevLevel = 1; s.levelUpT = 0; s.dropTimer = 0; s.autoDropMax = 0
     setScore(0); setOver(false); setPaused(false)
     gameStartTime.current = Date.now()
     maxAnimalReached.current = 0
@@ -325,7 +402,7 @@ export default function MergeGame({ playerName }) {
         const file = new File([blob], 'animal-game.png', { type: 'image/png' })
         await navigator.share({
           title: '동물 합치기',
-          text: `동물 합치기에서 ${score}점을 달성했어요!`,
+          text: `동물 합치기에서 ${score}점을 달성했어요! (LV.${g.current.level})`,
           files: [file]
         })
       } else if (blob) {
@@ -373,7 +450,7 @@ export default function MergeGame({ playerName }) {
           </button>
         </div>
       </div>
-      {/* 캔버스 + 게임오버 오버레이 */}
+      {/* 캔버스 + 오버레이 */}
       <div style={{ position: 'relative', width: '100%', maxWidth: 360 }}>
         <canvas
           ref={cvs} width={W} height={H}
@@ -381,7 +458,7 @@ export default function MergeGame({ playerName }) {
           onMouseMove={onMove} onClick={onDrop}
           onTouchStart={onMove} onTouchMove={onMove} onTouchEnd={onDrop}
         />
-        {/* 게임오버 버튼 (공유 + 랭킹) */}
+        {/* 게임오버 버튼 */}
         {over && (
           <div style={{
             position: 'absolute', bottom: '15%', left: '50%', transform: 'translateX(-50%)',

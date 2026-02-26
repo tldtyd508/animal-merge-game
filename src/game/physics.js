@@ -9,6 +9,10 @@ export const SUB_STEPS = 5
 // 서브스텝당 중력 (프레임당 중력을 서브스텝으로 나눔)
 const GRAVITY_PER_STEP = GRAVITY / SUB_STEPS
 
+// 동적 중력 배율 (난이도 시스템에서 조정)
+export let gravityScale = 1.0
+export function setGravityScale(s) { gravityScale = s }
+
 // 게임 영역
 export const CANVAS_W = 360
 export const CANVAS_H = 640
@@ -24,7 +28,7 @@ export function nextId() { return _uid++ }
 
 // 단일 공의 위치 업데이트 (서브스텝 1회분)
 export function updateBall(b) {
-  b.vy += GRAVITY_PER_STEP
+  b.vy += GRAVITY_PER_STEP * gravityScale
   b.vx *= AIR_RESISTANCE
   b.vy *= AIR_RESISTANCE  // 수직 공중 저항도 적용
   b.x += b.vx
