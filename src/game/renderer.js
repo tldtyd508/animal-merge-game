@@ -379,52 +379,6 @@ export function render(ctx, state, highScore = 0, paused = false) {
     ctx.globalAlpha = 1
   }
 
-  // ── 진화 사이드바 ──
-  const evoX = RIGHT - 16
-  const evoStartY = 90
-  const evoCount = ANIMALS.length
-  const evoSpacing = Math.min(44, (FLOOR_Y - evoStartY - 10) / (evoCount - 1))
-  const maxTypeOnBoard = state.balls.length > 0
-    ? state.balls.reduce((max, b) => Math.max(max, b.type), 0)
-    : -1
-
-  // 사이드바 배경
-  const evoBoxX = evoX - 16, evoBoxW = 32
-  const evoBoxY = evoStartY - 18, evoBoxH = evoSpacing * (evoCount - 1) + 36
-  ctx.fillStyle = '#2A2235'
-  roundRect(ctx, evoBoxX, evoBoxY, evoBoxW, evoBoxH, 10)
-  ctx.fill()
-
-  // 테두리
-  ctx.strokeStyle = '#4A3D5C'
-  ctx.lineWidth = 1
-  roundRect(ctx, evoBoxX, evoBoxY, evoBoxW, evoBoxH, 10)
-  ctx.stroke()
-
-  for (let i = 0; i < evoCount; i++) {
-    const ey = evoStartY + i * evoSpacing
-    const isHighest = i === maxTypeOnBoard
-    const isReached = i <= maxTypeOnBoard
-
-    // 현재 최고 하이라이트
-    if (isHighest) {
-      ctx.fillStyle = 'rgba(247, 201, 72, 0.15)'
-      ctx.beginPath()
-      ctx.arc(evoX, ey, 13, 0, Math.PI * 2)
-      ctx.fill()
-
-      ctx.strokeStyle = '#F7C948'
-      ctx.lineWidth = 1.5
-      ctx.beginPath()
-      ctx.arc(evoX, ey, 13, 0, Math.PI * 2)
-      ctx.stroke()
-    }
-
-    ctx.globalAlpha = isHighest ? 1.0 : isReached ? 0.5 : 0.15
-    drawAnimal(ctx, evoX, ey, 9, i)
-    ctx.globalAlpha = 1
-  }
-
   // ── 레벨업 이펙트 ──
   if (state.levelUpT > 0) {
     const luAlpha = Math.min(state.levelUpT / 30, 1)

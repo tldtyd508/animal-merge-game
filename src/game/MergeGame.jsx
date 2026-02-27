@@ -510,8 +510,8 @@ export default function MergeGame({ playerName }) {
   return (
     <div style={{
       display: 'flex', flexDirection: 'column', alignItems: 'center',
-      background: '#1A1520', minHeight: '100vh', padding: '8px 4px',
-      fontFamily: "'Noto Sans KR', sans-serif"
+      background: '#1A1520', height: '100dvh', padding: '4px 4px 0',
+      fontFamily: "'Noto Sans KR', sans-serif", overflow: 'hidden',
     }}>
       {/* 헤더 */}
       <div style={{
@@ -610,10 +610,10 @@ export default function MergeGame({ playerName }) {
       </div>
 
       {/* 캔버스 + 오버레이 */}
-      <div style={{ position: 'relative', width: '100%', maxWidth: 360 }}>
+      <div style={{ position: 'relative', width: '100%', maxWidth: 360, flex: 1, minHeight: 0 }}>
         <canvas
           ref={cvs} width={W} height={H}
-          style={{ width: '100%', maxWidth: 360, borderRadius: 12, cursor: 'pointer', touchAction: 'none', display: 'block' }}
+          style={{ width: '100%', maxWidth: 360, maxHeight: '100%', borderRadius: 12, cursor: 'pointer', touchAction: 'none', display: 'block' }}
           onMouseMove={onMove} onClick={onDrop}
           onTouchStart={onMove} onTouchMove={onMove} onTouchEnd={onDrop}
         />
@@ -704,9 +704,6 @@ export default function MergeGame({ playerName }) {
             </div>
           </div>
         )}
-      </div>
-      <div style={{ color: '#7A6B8A', fontSize: 12, marginTop: 6 }}>
-        같은 동물을 합쳐서 더 큰 동물로 진화시키세요!
       </div>
 
       {/* 모달 */}

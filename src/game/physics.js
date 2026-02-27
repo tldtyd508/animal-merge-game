@@ -3,7 +3,7 @@ export const GRAVITY = 0.55   // 프레임당 중력 (서브스텝 내에서 나
 export const BOUNCE = 0.25    // 낮은 반발 (무거운 느낌)
 export const FRICTION = 0.85  // 강한 바닥 마찰
 export const AIR_RESISTANCE = 0.995 // 공중 저항 (vx, vy 모두 적용)
-export const SPACING_FACTOR = 0.90  // 충돌 거리 (< merge threshold 0.95 필수)
+export const SPACING_FACTOR = 0.78  // 충돌 거리 (낮을수록 밀착)
 export const SUB_STEPS = 5
 
 // 서브스텝당 중력 (프레임당 중력을 서브스텝으로 나눔)
