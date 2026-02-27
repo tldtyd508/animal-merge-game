@@ -4,7 +4,7 @@
 export function drawAnimal(ctx, x, y, r, type) {
   ctx.save()
   ctx.translate(x, y)
-  ctx.scale(1.3, 1.3)
+  ctx.scale(1.1, 1.1)
   const s = r / 45
 
   switch (type) {
