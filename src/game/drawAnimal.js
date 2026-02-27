@@ -1,10 +1,59 @@
 // 각 동물별 Canvas 2D 전신 드로잉
-// 각양각색의 체형: 가로형, 둥근형, 날씬형, 넓적형 등
+// 수박게임 스타일 버블 배경 + 동물별 개별 스케일
+
+// 버블 배경색 (동물 테마에 맞춤)
+const BUBBLE_COLORS = [
+  { fill: '#BCAAA4', stroke: '#795548' },   // 개미 - 갈색
+  { fill: '#CFD8DC', stroke: '#90A4AE' },   // 쥐 - 회색
+  { fill: '#FFE0B2', stroke: '#FF9800' },   // 햄스터 - 주황
+  { fill: '#FCE4EC', stroke: '#F48FB1' },   // 토끼 - 분홍
+  { fill: '#FFCCBC', stroke: '#FF7043' },   // 고양이 - 피치
+  { fill: '#D7CCC8', stroke: '#8D6E63' },   // 강아지 - 탄색
+  { fill: '#FFAB91', stroke: '#E64A19' },   // 여우 - 살몬
+  { fill: '#8D6E63', stroke: '#4E342E' },   // 곰 - 초콜릿
+  { fill: '#FFE082', stroke: '#F9A825' },   // 사자 - 골드
+  { fill: '#B0BEC5', stroke: '#607D8B' },   // 코끼리 - 블루그레이
+  { fill: '#A5D6A7', stroke: '#2E7D32' },   // 공룡 - 그린
+]
+
+// 동물별 스케일 (각 동물의 시각적 크기를 버블에 맞춤)
+const ANIMAL_SCALE = [
+  1.18,  // 개미 (작아서 확대)
+  1.05,  // 쥐
+  1.00,  // 햄스터
+  0.92,  // 토끼 (큰 귀 축소)
+  0.96,  // 고양이 (긴 꼬리)
+  1.08,  // 강아지
+  1.00,  // 여우
+  1.06,  // 곰
+  1.03,  // 사자
+  1.08,  // 코끼리
+  1.00,  // 공룡
+]
+
+const VISUAL_R = 0.94  // physics.js SPACING_FACTOR와 동일
 
 export function drawAnimal(ctx, x, y, r, type) {
   ctx.save()
   ctx.translate(x, y)
-  ctx.scale(1.1, 1.1)
+
+  // 버블 배경 (충돌 경계와 정확히 일치)
+  const bubble = BUBBLE_COLORS[type]
+  if (bubble) {
+    const vr = r * VISUAL_R
+    ctx.beginPath()
+    ctx.arc(0, 0, vr, 0, Math.PI * 2)
+    ctx.fillStyle = bubble.fill
+    ctx.fill()
+    ctx.lineWidth = 2
+    ctx.strokeStyle = bubble.stroke
+    ctx.stroke()
+  }
+
+  // 동물별 스케일 적용
+  const sc = ANIMAL_SCALE[type] || 1.0
+  ctx.scale(sc, sc)
+
   const s = r / 45
 
   switch (type) {
