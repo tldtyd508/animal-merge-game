@@ -156,9 +156,9 @@ export function render(ctx, state, highScore = 0, paused = false) {
     ctx.beginPath(); ctx.moveTo(state.dropX, DROP_Y); ctx.lineTo(state.dropX, FLOOR_Y); ctx.stroke()
     ctx.setLineDash([])
 
-    // 현재 드롭할 동물
+    // 현재 드롭할 동물 (축소 프리뷰 — NEXT 박스와 겹침 방지)
     ctx.globalAlpha = 0.7
-    drawAnimal(ctx, state.dropX, DROP_Y / 2 + 12, ANIMALS[state.cur].r, state.cur)
+    drawAnimal(ctx, state.dropX, DROP_Y / 2 + 12, ANIMALS[state.cur].r * 0.6, state.cur)
     ctx.globalAlpha = 1
   }
 
@@ -361,21 +361,21 @@ export function render(ctx, state, highScore = 0, paused = false) {
   ctx.textBaseline = 'alphabetic'
   ctx.fillText('NEXT', nextX, labelY + 11)
 
-  // 첫 번째 NEXT 동물
-  drawAnimal(ctx, nextX, 38, ANIMALS[state.nxt].r * 0.5, state.nxt)
+  // 첫 번째 NEXT 동물 (버블 포함 축소)
+  drawAnimal(ctx, nextX, 36, ANIMALS[state.nxt].r * 0.32, state.nxt)
 
   // 구분선
   ctx.strokeStyle = '#4A3D5C'
   ctx.lineWidth = 0.5
   ctx.beginPath()
-  ctx.moveTo(bx + 8, 52)
-  ctx.lineTo(bx + bw - 8, 52)
+  ctx.moveTo(bx + 8, 50)
+  ctx.lineTo(bx + bw - 8, 50)
   ctx.stroke()
 
-  // 두 번째 NEXT 동물
+  // 두 번째 NEXT 동물 (버블 포함 축소)
   if (state.nxt2 !== undefined) {
     ctx.globalAlpha = 0.65
-    drawAnimal(ctx, nextX, 66, ANIMALS[state.nxt2].r * 0.35, state.nxt2)
+    drawAnimal(ctx, nextX, 64, ANIMALS[state.nxt2].r * 0.22, state.nxt2)
     ctx.globalAlpha = 1
   }
 
